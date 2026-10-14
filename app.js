@@ -6,6 +6,8 @@
   let tasks = load(STORAGE_KEY, []);
   let timer = load(TIMER_KEY, null);
   let releaseTarget = null;
+  let detailTaskId = null;
+  let currentView = localStorage.getItem('naMinhaMao.view') === 'kanban' ? 'kanban' : 'list';
   let toastTimeout;
 
   function load(key, fallback) {
@@ -80,6 +82,7 @@
   function openNewForm() {
     $('taskForm').reset();
     $('taskId').value = '';
+    $('details').value = '';
     $('estimate').value = 60;
     document.querySelector('input[name="ready"][value="yes"]').checked = true;
     document.querySelectorAll('input[name="ready"]').forEach(input => input.disabled = false);
@@ -95,6 +98,7 @@
     $('taskForm').reset();
     $('taskId').value = task.id;
     $('title').value = task.title;
+    $('details').value = task.details || '';
     $('estimate').value = task.estimateMinutes || 60;
     $('dueDate').value = task.dueDate || '';
     $('reward').value = task.reward || '';
@@ -114,7 +118,11 @@
     const due = task.dueDate ? `Entrega: ${escapeHTML(formatDate(task.dueDate))}` : 'Sem data de entrega';
     const dueClass = dueStatus(task) ? 'late' : 'age';
     const blocker = task.blocker ? `<div class="task-details"><span>Falta: ${escapeHTML(task.blocker)}</span></div>` : '';
+    const description = task.details ? `<div class="task-description">${escapeHTML(task.details)}</div>` : '';
     const reward = task.reward ? `<div class="task-details reward"><span>🎁 ${escapeHTML(task.reward)}</span></div>` : '';
+    const commentCount = (task.comments || []).length;
+    const linkCount = (task.links || []).length;
+    const detailsButton = `<button class="btn small" data-action="details" data-id="${escapeHTML(task.id)}" type="button">Pedidos (${commentCount}) · Links (${linkCount})</button>`;
     const progress = task.estimateMinutes ? `${formatMinutes(task.estimateMinutes)} estimados · ${formatMinutes(Math.floor(elapsedSeconds(task)/60))} registrados` : '';
     const timerButton = completed ? '' : `<button class="btn small ${timer?.taskId === task.id && timer.startedAt ? 'warn' : 'good'}" data-action="timer" data-id="${escapeHTML(task.id)}" type="button">${timer?.taskId === task.id && timer.startedAt ? 'Pausar foco' : 'Começar foco'}</button>`;
     const completeButton = completed
@@ -127,10 +135,11 @@
     return `<article class="task" data-task="${escapeHTML(task.id)}">
       <div class="task-top"><div><div class="task-title">${escapeHTML(task.title)}</div><div class="task-meta">${activeMeta}</div></div>${task.status === 'active' && !completed ? `<span class="pill timer-readout" data-id="${escapeHTML(task.id)}">${escapeHTML(remainingLabel(task))}</span>` : ''}</div>
       ${blocker}
+      ${description}
       <div class="task-details"><span>⏱ ${escapeHTML(progress)}</span>${task.status === 'active' ? `<span>📅 Liberada: ${escapeHTML(formatDate(task.releaseDate))}</span>` : ''}</div>
       ${reward}
       ${completed && task.completedAt ? `<div class="task-details"><span>Concluída em ${escapeHTML(formatDate(task.completedDate || task.completedAt.slice(0,10)))}</span></div>` : ''}
-      <div class="task-actions">${releaseButton}${timerButton}${editButton}${completeButton}${deleteButton}</div>
+      <div class="task-actions">${releaseButton}${timerButton}${editButton}${detailsButton}${completeButton}${deleteButton}</div>
     </article>`;
   }
   function render() {
@@ -147,11 +156,91 @@
     $('activeCount').textContent = active.length;
     $('waitingCount').textContent = waiting.length;
     $('doneCount').textContent = done.length;
+    $('activeBoardCount').textContent = active.length;
+    $('waitingBoardCount').textContent = waiting.length;
+    $('doneBoardCount').textContent = done.length;
     $('estimateTotal').textContent = formatMinutes(active.reduce((sum,t) => sum + (Number(t.estimateMinutes)||0), 0));
     $('activeList').innerHTML = active.length ? active.map(t => renderTask(t)).join('') : '<div class="empty">Nenhuma tarefa liberada por enquanto. Quando estiver com tudo em mãos, registre a liberação.</div>';
     $('waitingList').innerHTML = waiting.length ? waiting.map(t => renderTask(t)).join('') : '<div class="empty">Nada aguardando liberação.</div>';
     $('doneList').innerHTML = done.length ? done.map(t => renderTask(t,true)).join('') : '<div class="empty">As tarefas concluídas aparecem aqui.</div>';
+    $('activeBoard').innerHTML = active.length ? active.map(t => renderTask(t)).join('') : '<div class="empty">Nenhuma tarefa liberada.</div>';
+    $('waitingBoard').innerHTML = waiting.length ? waiting.map(t => renderTask(t)).join('') : '<div class="empty">Nenhuma tarefa aguardando.</div>';
+    $('doneBoardList').innerHTML = done.length ? done.map(t => renderTask(t,true)).join('') : '<div class="empty">Nenhuma tarefa concluída.</div>';
+    applyViewMode();
     updateTimerDisplays();
+  }
+  function applyViewMode() {
+    const isBoard = currentView === 'kanban';
+    $('listView').classList.toggle('hidden', isBoard);
+    $('boardView').classList.toggle('hidden', !isBoard);
+    $('listViewBtn').setAttribute('aria-pressed', String(!isBoard));
+    $('listViewBtn').setAttribute('aria-selected', String(!isBoard));
+    $('boardViewBtn').setAttribute('aria-pressed', String(isBoard));
+    $('boardViewBtn').setAttribute('aria-selected', String(isBoard));
+  }
+  function setView(view) {
+    currentView = view === 'kanban' ? 'kanban' : 'list';
+    localStorage.setItem('naMinhaMao.view', currentView);
+    applyViewMode();
+  }
+  function safeHttpUrl(raw) {
+    try {
+      const url = new URL(raw);
+      return url.protocol === 'http:' || url.protocol === 'https:' ? url : null;
+    } catch { return null; }
+  }
+  function formatTimestamp(value) {
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? 'Data não disponível' : date.toLocaleString('pt-BR', { weekday:'short', day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
+  }
+  function openDetails(taskId) {
+    detailTaskId = taskId;
+    renderDetails();
+    $('detailsDialog').showModal();
+  }
+  function renderDetails() {
+    const task = tasks.find(item => item.id === detailTaskId);
+    if (!task) return;
+    $('detailTitle').textContent = task.title;
+    $('detailDescription').textContent = task.details || 'Nenhum detalhe adicional cadastrado.';
+    const comments = (task.comments || []).slice().sort((a,b) => a.createdAt.localeCompare(b.createdAt));
+    $('commentTimeline').innerHTML = comments.length ? comments.map(comment => `<article class="timeline-item"><div class="timeline-meta"><span>${escapeHTML(comment.source || 'Manual')}</span><span>${escapeHTML(formatTimestamp(comment.createdAt))}</span></div><div class="timeline-text">${escapeHTML(comment.text)}</div></article>`).join('') : '<div class="empty">Ainda não há pedidos ou comentários registrados.</div>';
+    const links = task.links || [];
+    $('linksList').innerHTML = links.length ? links.map(link => {
+      const url = safeHttpUrl(link.url);
+      const label = escapeHTML(link.label || link.url);
+      const target = url ? `<a href="${escapeHTML(url.href)}" target="_blank" rel="noopener noreferrer">${label}</a><div class="hint">${escapeHTML(url.href)}</div>` : `<span>${label} — link inválido</span>`;
+      return `<div class="link-item"><div>${target}</div><button class="btn small ghost" type="button" data-link-action="remove" data-id="${escapeHTML(link.id)}">Remover</button></div>`;
+    }).join('') : '<div class="empty">Nenhum link anexado.</div>';
+  }
+  function onCommentSubmit(event) {
+    event.preventDefault();
+    const task = tasks.find(item => item.id === detailTaskId);
+    const text = $('commentText').value.trim();
+    if (!task || !text) return;
+    task.comments ||= [];
+    task.comments.push({ id:id(), text, source:$('commentSource').value, createdAt:new Date().toISOString() });
+    save(); render(); renderDetails(); $('commentForm').reset();
+    showToast('Pedido/comentário adicionado à timeline.');
+  }
+  function onLinkSubmit(event) {
+    event.preventDefault();
+    const task = tasks.find(item => item.id === detailTaskId);
+    const url = safeHttpUrl($('linkUrl').value.trim());
+    if (!task) return;
+    if (!url) { showToast('Use um endereço começando com http:// ou https://.'); $('linkUrl').focus(); return; }
+    task.links ||= [];
+    task.links.push({ id:id(), label:$('linkLabel').value.trim() || url.hostname, url:url.href, createdAt:new Date().toISOString() });
+    save(); render(); renderDetails(); $('linkForm').reset();
+    showToast('Link anexado à tarefa.');
+  }
+  function handleLinkAction(event) {
+    const button = event.target.closest('button[data-link-action="remove"]');
+    if (!button) return;
+    const task = tasks.find(item => item.id === detailTaskId);
+    if (!task || !window.confirm('Remover este link da tarefa?')) return;
+    task.links = (task.links || []).filter(link => link.id !== button.dataset.id);
+    save(); render(); renderDetails(); showToast('Link removido.');
   }
   function updateTimerDisplays() {
     document.querySelectorAll('.timer-readout[data-id]').forEach(node => {
@@ -196,6 +285,7 @@
     switch (button.dataset.action) {
       case 'release': openRelease(taskId); break;
       case 'edit': openEditForm(taskId); break;
+      case 'details': openDetails(taskId); break;
       case 'timer': toggleTimer(taskId); break;
       case 'complete': {
         if (!window.confirm(`Concluir “${task.title}”?`)) return;
@@ -229,6 +319,7 @@
       if (!task) return;
       const wasWaiting = task.status === 'waiting';
       task.title = title;
+      task.details = String(data.get('details')||'').trim();
       task.estimateMinutes = estimate;
       if (wasWaiting && ready) {
         task.status = 'active'; task.releaseDate = todayKey();
@@ -244,7 +335,7 @@
       return;
     }
     const task = {
-      id: id(), title, status: ready ? 'active' : 'waiting',
+      id: id(), title, details: String(data.get('details')||'').trim(), comments: [], links: [], status: ready ? 'active' : 'waiting',
       releaseDate: ready ? todayKey() : null, dueDate: ready ? (String(data.get('dueDate')||'') || null) : null,
       estimateMinutes: estimate, reward: ready ? String(data.get('reward')||'').trim() : '',
       blocker: ready ? '' : String(data.get('blocker')||'').trim(), timeSpentSeconds: 0,
@@ -283,6 +374,16 @@
   $('activeList').addEventListener('click', handleListAction);
   $('waitingList').addEventListener('click', handleListAction);
   $('doneList').addEventListener('click', handleListAction);
+  $('activeBoard').addEventListener('click', handleListAction);
+  $('waitingBoard').addEventListener('click', handleListAction);
+  $('doneBoardList').addEventListener('click', handleListAction);
+  $('listViewBtn').addEventListener('click', () => setView('list'));
+  $('boardViewBtn').addEventListener('click', () => setView('kanban'));
+  $('closeDetailsBtn').addEventListener('click', () => $('detailsDialog').close());
+  $('detailsDialog').addEventListener('close', () => { detailTaskId = null; });
+  $('commentForm').addEventListener('submit', onCommentSubmit);
+  $('linkForm').addEventListener('submit', onLinkSubmit);
+  $('linksList').addEventListener('click', handleLinkAction);
   window.addEventListener('beforeunload', save);
   setInterval(updateTimerDisplays, 1000);
   setFormMode();
