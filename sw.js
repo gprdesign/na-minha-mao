@@ -1,5 +1,5 @@
-const CACHE_NAME = 'na-minha-mao-v2';
-const APP_FILES = ['./', './index.html', './app.js', './manifest.webmanifest', './icon.svg'];
+const CACHE_NAME = 'na-minha-mao-v3';
+const APP_FILES = ['./', './index.html', './app.js?v=2', './manifest.webmanifest', './icon.svg'];
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(APP_FILES)));
   self.skipWaiting();
@@ -10,11 +10,11 @@ self.addEventListener('activate', event => {
 });
 self.addEventListener('fetch', event => {
   if (event.request.method !== 'GET') return;
-  event.respondWith(caches.match(event.request).then(cached => cached || fetch(event.request).then(response => {
+  event.respondWith(fetch(event.request).then(response => {
     if (response.ok && new URL(event.request.url).origin === self.location.origin) {
       const copy = response.clone();
       caches.open(CACHE_NAME).then(cache => cache.put(event.request, copy));
     }
     return response;
-  }).catch(() => caches.match('./index.html'))));
+  }).catch(async () => (await caches.match(event.request)) || caches.match('./index.html')));
 });
