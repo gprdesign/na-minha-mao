@@ -4,6 +4,7 @@
   const TIMER_KEY = 'naMinhaMao.timer.v1';
   const SESSION_KEY = 'naMinhaMao.supabase.session.v1';
   const SYNC_KEY = 'naMinhaMao.supabase.sync.v1';
+  const HISTORY_PREFIX = '[HISTÓRICO] ';
   const CLOUD = window.NMM_SUPABASE || {};
   const CLOUD_READY = Boolean(CLOUD.url && CLOUD.publishableKey);
   const $ = (id) => document.getElementById(id);
@@ -13,6 +14,7 @@
   let syncEnabled = localStorage.getItem(SYNC_KEY) === 'true';
   let releaseTarget = null;
   let detailTaskId = null;
+  let historyExpanded = false;
   localStorage.removeItem('naMinhaMao.view');
   const storedPage = localStorage.getItem('naMinhaMao.page');
   let currentPage = ['home','tasks','settings'].includes(storedPage) ? storedPage : 'home';
@@ -102,6 +104,11 @@
     node.classList.remove('hidden');
     clearTimeout(toastTimeout);
     toastTimeout = setTimeout(() => node.classList.add('hidden'), 4200);
+  }
+  function recordHistory(task, action, createdAt = new Date().toISOString()) {
+    if (!task || !action) return;
+    task.comments ||= [];
+    task.comments.push({ id:id(), text:`${HISTORY_PREFIX}${action}`, source:'Manual', createdAt });
   }
   function setAuthMessage(message, isError = false) {
     authMessageText = message;
@@ -246,8 +253,63 @@
     $('reviewList').innerHTML = review.length ? review.map(t => renderTask(t)).join('') : '<div class="empty">Nenhuma tarefa aguardando aprovação do cliente.</div>';
     $('waitingList').innerHTML = waiting.length ? waiting.map(t => renderTask(t)).join('') : '<div class="empty">Caixa de entrada vazia por enquanto.</div>';
     $('doneList').innerHTML = done.length ? done.map(t => renderTask(t,true)).join('') : '<div class="empty">As tarefas concluídas aparecem aqui.</div>';
+    renderHistory();
     applyPageMode();
     updateTimerDisplays();
+  }
+  function renderHistory() {
+    const entries = [];
+    const pushEntry = (task, action, createdAt, detail = '') => {
+      if (!createdAt) return;
+      entries.push({ taskTitle:task.title, action, createdAt, detail });
+    };
+    for (const task of tasks) {
+      const comments = Array.isArray(task.comments) ? task.comments : [];
+      const systemActions = comments
+        .filter(comment => String(comment.text || '').startsWith(HISTORY_PREFIX))
+        .map(comment => String(comment.text || '').slice(HISTORY_PREFIX.length));
+      for (const comment of comments) {
+        const rawText = String(comment.text || '');
+        const isSystem = rawText.startsWith(HISTORY_PREFIX);
+        const preview = isSystem ? '' : rawText.replace(/\s+/g, ' ').trim();
+        const detail = preview.length > 110 ? `${preview.slice(0,107).trim()}…` : preview;
+        const action = isSystem ? rawText.slice(HISTORY_PREFIX.length) : `Registro adicionado · ${comment.source || 'Manual'}`;
+        pushEntry(task, action, comment.createdAt || task.createdAt, detail);
+      }
+      if (task.createdAt && !systemActions.includes('Tarefa criada')) pushEntry(task, 'Tarefa criada', task.createdAt);
+      if (task.completedAt && !systemActions.includes('Tarefa concluída')) pushEntry(task, 'Tarefa concluída', task.completedAt);
+      for (const link of (Array.isArray(task.links) ? task.links : [])) {
+        pushEntry(task, `Link anexado: ${link.label || link.url || 'Link'}`, link.createdAt);
+      }
+      for (const item of (Array.isArray(task.subtasks) ? task.subtasks : [])) {
+        if (!item) continue;
+        const text = String(item.text || 'Subtarefa');
+        if (item.createdAt) pushEntry(task, `Subtarefa adicionada: ${text}`, item.createdAt);
+        if (item.completedAt && !systemActions.includes(`Subtarefa concluída: ${text}`)) pushEntry(task, `Subtarefa concluída: ${text}`, item.completedAt);
+        if (item.deletedAt) pushEntry(task, `Subtarefa removida: ${text}`, item.deletedAt);
+      }
+    }
+    const timestamp = value => {
+      const parsed = Date.parse(value || '');
+      return Number.isFinite(parsed) ? parsed : 0;
+    };
+    entries.sort((a,b) => timestamp(b.createdAt) - timestamp(a.createdAt));
+    const list = $('homeHistoryList');
+    const button = $('historyMoreBtn');
+    if (!list || !button) return;
+    if (!entries.length) {
+      list.innerHTML = '<div class="empty">As alterações recentes aparecerão aqui.</div>';
+      button.classList.add('hidden');
+      button.textContent = 'Ver mais';
+      button.setAttribute('aria-expanded', 'false');
+      historyExpanded = false;
+      return;
+    }
+    const visible = historyExpanded ? entries : entries.slice(0,3);
+    list.innerHTML = visible.map(entry => `<article class="history-item"><div class="history-main"><div class="history-action">${escapeHTML(entry.action)}</div><div class="history-task">${escapeHTML(entry.taskTitle)}</div>${entry.detail ? `<div class="history-detail">${escapeHTML(entry.detail)}</div>` : ''}</div><time class="history-time" datetime="${escapeHTML(entry.createdAt)}">${escapeHTML(formatTimestamp(entry.createdAt))}</time></article>`).join('');
+    button.classList.toggle('hidden', entries.length <= 3);
+    button.textContent = historyExpanded ? 'Ver menos' : 'Ver mais';
+    button.setAttribute('aria-expanded', String(historyExpanded));
   }
   function applyPageMode() {
     const views = { home:'homePage', tasks:'tasksPage', settings:'settingsPage' };
@@ -326,7 +388,13 @@
     }
     $('detailTaskActions').innerHTML = detailActions.join('');
     const comments = (task.comments || []).slice().sort((a,b) => a.createdAt.localeCompare(b.createdAt));
-    $('commentTimeline').innerHTML = comments.length ? comments.map(comment => `<article class="timeline-item"><div class="timeline-meta"><span>${escapeHTML(comment.source || 'Manual')}</span><span>${escapeHTML(formatTimestamp(comment.createdAt))}</span></div><div class="timeline-text">${escapeHTML(comment.text)}</div></article>`).join('') : '<div class="empty">Ainda não há pedidos ou comentários registrados.</div>';
+    $('commentTimeline').innerHTML = comments.length ? comments.map(comment => {
+      const text = String(comment.text || '');
+      const isHistory = text.startsWith(HISTORY_PREFIX);
+      const source = isHistory ? 'Sistema' : (comment.source || 'Manual');
+      const displayText = isHistory ? text.slice(HISTORY_PREFIX.length) : text;
+      return `<article class="timeline-item"><div class="timeline-meta"><span>${escapeHTML(source)}</span><span>${escapeHTML(formatTimestamp(comment.createdAt))}</span></div><div class="timeline-text">${escapeHTML(displayText)}</div></article>`;
+    }).join('') : '<div class="empty">Ainda não há pedidos ou comentários registrados.</div>';
     const links = task.links || [];
     $('linksList').innerHTML = links.length ? links.map(link => {
       const url = safeHttpUrl(link.url);
@@ -366,8 +434,10 @@
     const task = tasks.find(item => String(item.id) === String(detailTaskId));
     const item = task?.subtasks?.find(subtask => String(subtask.id) === checkbox.dataset.subtaskId && !subtask.deletedAt);
     if (!item) return;
-    item.completedAt = checkbox.checked ? new Date().toISOString() : null;
-    item.updatedAt = new Date().toISOString();
+    const now = new Date().toISOString();
+    item.completedAt = checkbox.checked ? now : null;
+    item.updatedAt = now;
+    recordHistory(task, `${checkbox.checked ? 'Subtarefa concluída' : 'Subtarefa reaberta'}: ${item.text}`, now);
     save(); render(); renderDetails();
     showToast(checkbox.checked ? 'Subtarefa concluída.' : 'Subtarefa reaberta.');
   }
@@ -408,7 +478,9 @@
     if (!button) return;
     const task = tasks.find(item => item.id === detailTaskId);
     if (!task || !window.confirm('Remover este link da tarefa?')) return;
+    const removedLink = (task.links || []).find(link => link.id === button.dataset.id);
     task.links = (task.links || []).filter(link => link.id !== button.dataset.id);
+    recordHistory(task, `Link removido: ${removedLink?.label || removedLink?.url || 'Link'}`);
     save(); render(); renderDetails(); showToast('Link removido.');
   }
   function updateTimerDisplays() {
@@ -468,14 +540,16 @@
           : `Concluir “${task.title}”?`;
         if (!window.confirm(confirmMessage)) return;
         if (timer?.taskId === taskId && timer.startedAt) pauseTimer();
-        task.completedAt = new Date().toISOString();
+        const completedAt = new Date().toISOString();
+        task.completedAt = completedAt;
         task.completedDate = todayKey();
+        recordHistory(task, 'Tarefa concluída', completedAt);
         save(); render();
         showToast(task.reward ? `Concluída! Recompensa combinada: ${task.reward}` : 'Tarefa concluída. Boa — mais uma etapa feita.');
         break;
       }
       case 'reopen':
-        task.completedAt = null; task.completedDate = null; save(); render();
+        task.completedAt = null; task.completedDate = null; recordHistory(task, 'Tarefa reaberta'); save(); render();
         if ($('detailsDialog').open) renderDetails();
         showToast('Tarefa reaberta.'); break;
       case 'delete':
@@ -498,6 +572,11 @@
       const task = tasks.find(item => item.id === editId);
       if (!task) return;
       const wasWaiting = task.status === 'waiting';
+      const before = {
+        title:task.title, details:task.details || '', estimateMinutes:Number(task.estimateMinutes) || 60,
+        status:task.status, releaseDate:task.releaseDate || null, dueDate:task.dueDate || null,
+        reward:task.reward || '', blocker:task.blocker || ''
+      };
       task.title = title;
       task.details = String(data.get('details')||'').trim();
       task.estimateMinutes = estimate;
@@ -511,6 +590,8 @@
         task.dueDate = String(data.get('dueDate')||'') || null;
         task.reward = String(data.get('reward')||'').trim();
       }
+      const changed = before.title !== task.title || before.details !== task.details || before.estimateMinutes !== task.estimateMinutes || before.status !== task.status || before.releaseDate !== (task.releaseDate || null) || before.dueDate !== (task.dueDate || null) || before.reward !== (task.reward || '') || before.blocker !== (task.blocker || '');
+      if (changed) recordHistory(task, wasWaiting && ready ? 'Tarefa liberada para começar' : 'Tarefa atualizada');
       save(); render(); closeForm(); showToast(wasWaiting && ready ? 'Liberada hoje. A contagem começa agora.' : 'Tarefa atualizada.');
       return;
     }
@@ -533,6 +614,7 @@
     task.status = 'active'; task.releaseDate = todayKey();
     task.dueDate = $('releaseDue').value || null;
     task.estimateMinutes = estimate; task.reward = $('releaseReward').value.trim(); task.blocker = '';
+    recordHistory(task, 'Tarefa liberada para começar');
     releaseTarget = null; save(); $('releaseDialog').close(); render();
     showToast('Liberada hoje. A contagem de dias começa agora.');
   }
@@ -850,6 +932,7 @@
     const button = event.target.closest('button[data-open-task]');
     if (button) openTaskInList(button.dataset.openTask);
   });
+  $('historyMoreBtn').addEventListener('click', () => { historyExpanded = !historyExpanded; renderHistory(); });
   $('newBtn').addEventListener('click', openNewForm);
   $('closeFormBtn').addEventListener('click', closeForm);
   $('taskForm').addEventListener('submit', onSubmitTask);
