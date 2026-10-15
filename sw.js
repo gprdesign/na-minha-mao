@@ -1,5 +1,5 @@
-const CACHE_NAME = 'na-minha-mao-v6';
-const APP_FILES = ['./', './index.html', './config.js?v=1', './app.js?v=4', './manifest.webmanifest', './icon.svg'];
+const CACHE_NAME = 'na-minha-mao-v7';
+const APP_FILES = ['./', './index.html', './config.js?v=1', './app.js?v=5', './manifest.webmanifest', './icon.svg'];
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(APP_FILES)));
   self.skipWaiting();

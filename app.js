@@ -14,6 +14,8 @@
   let releaseTarget = null;
   let detailTaskId = null;
   let currentView = localStorage.getItem('naMinhaMao.view') === 'kanban' ? 'kanban' : 'list';
+  const storedPage = localStorage.getItem('naMinhaMao.page');
+  let currentPage = ['home','tasks','settings'].includes(storedPage) ? storedPage : 'home';
   let toastTimeout;
   let syncTimeout;
   let syncInFlight = false;
@@ -184,7 +186,7 @@
     const reward = task.reward ? `<div class="task-details reward"><span>🎁 ${escapeHTML(task.reward)}</span></div>` : '';
     const commentCount = (task.comments || []).length;
     const linkCount = (task.links || []).length;
-    const detailsButton = `<button class="btn small" data-action="details" data-id="${escapeHTML(task.id)}" type="button">Pedidos (${commentCount}) · Links (${linkCount})</button>`;
+    const detailsButton = `<button class="btn small" data-action="details" data-id="${escapeHTML(task.id)}" type="button" aria-label="Detalhes: ${commentCount} pedidos e ${linkCount} links">Detalhes</button>`;
     const progress = task.estimateMinutes ? `${formatMinutes(task.estimateMinutes)} estimados · ${formatMinutes(Math.floor(elapsedSeconds(task)/60))} registrados` : '';
     const timerButton = completed || task.status !== 'active' ? '' : `<button class="btn small ${timer?.taskId === task.id && timer.startedAt ? 'warn' : 'good'}" data-action="timer" data-id="${escapeHTML(task.id)}" type="button">${timer?.taskId === task.id && timer.startedAt ? 'Pausar foco' : 'Começar foco'}</button>`;
     const completeButton = completed
@@ -225,11 +227,26 @@
     });
     const waiting = tasks.filter(t => t.status === 'waiting' && !t.completedAt).sort((a,b) => a.createdAt.localeCompare(b.createdAt));
     const done = tasks.filter(t => Boolean(t.completedAt)).sort((a,b) => b.completedAt.localeCompare(a.completedAt));
+    const total = tasks.length;
     $('activeCount').textContent = active.length;
     $('reviewCount').textContent = review.length;
     $('reviewListCount').textContent = review.length;
     $('reviewBoardCount').textContent = review.length;
     $('waitingCount').textContent = waiting.length;
+    $('homeDoneCount').textContent = done.length;
+    $('homeTotalText').textContent = `${total} tarefa${total === 1 ? '' : 's'}`;
+    const metrics = [
+      { count:active.length, bar:'homeActiveBar', progress:'homeActiveProgress', share:'homeActiveShare' },
+      { count:review.length, bar:'homeReviewBar', progress:'homeReviewProgress', share:'homeReviewShare' },
+      { count:waiting.length, bar:'homeWaitingBar', progress:'homeWaitingProgress', share:'homeWaitingShare' },
+      { count:done.length, bar:'homeDoneBar', progress:'homeDoneProgress', share:'homeDoneShare' }
+    ];
+    metrics.forEach(metric => {
+      const percent = total ? Math.round(metric.count / total * 100) : 0;
+      $(metric.bar).style.width = `${percent}%`;
+      $(metric.progress).setAttribute('aria-valuenow', String(percent));
+      $(metric.share).textContent = `${percent}% do total`;
+    });
     $('doneCount').textContent = done.length;
     $('activeBoardCount').textContent = active.length;
     $('waitingBoardCount').textContent = waiting.length;
@@ -244,6 +261,7 @@
     $('waitingBoard').innerHTML = waiting.length ? waiting.map(t => renderTask(t)).join('') : '<div class="empty">Nenhuma tarefa aguardando.</div>';
     $('doneBoardList').innerHTML = done.length ? done.map(t => renderTask(t,true)).join('') : '<div class="empty">Nenhuma tarefa concluída.</div>';
     applyViewMode();
+    applyPageMode();
     updateTimerDisplays();
   }
   function applyViewMode() {
@@ -259,6 +277,21 @@
     currentView = view === 'kanban' ? 'kanban' : 'list';
     localStorage.setItem('naMinhaMao.view', currentView);
     applyViewMode();
+  }
+  function applyPageMode() {
+    const views = { home:'homePage', tasks:'tasksPage', settings:'settingsPage' };
+    Object.entries(views).forEach(([page, id]) => $(id).classList.toggle('hidden', currentPage !== page));
+    document.querySelectorAll('.nav-btn[data-page]').forEach(button => {
+      if (button.dataset.page === currentPage) button.setAttribute('aria-current', 'page');
+      else button.removeAttribute('aria-current');
+    });
+  }
+  function setPage(page) {
+    if (!['home','tasks','settings'].includes(page)) return;
+    currentPage = page;
+    localStorage.setItem('naMinhaMao.page', currentPage);
+    applyPageMode();
+    if (currentPage === 'tasks') applyViewMode();
   }
   function safeHttpUrl(raw) {
     try {
@@ -714,6 +747,10 @@
     } finally { authBusy = false; updateAuthUI(); }
   }
 
+  document.querySelector('.main-nav').addEventListener('click', event => {
+    const button = event.target.closest('button[data-page]');
+    if (button) setPage(button.dataset.page);
+  });
   $('newBtn').addEventListener('click', openNewForm);
   $('closeFormBtn').addEventListener('click', closeForm);
   $('taskForm').addEventListener('submit', onSubmitTask);

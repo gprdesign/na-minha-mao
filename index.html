@@ -14,12 +14,36 @@
     body { margin:0; background:linear-gradient(145deg,#0b1020,#111a2c 60%,#0b1020); color:var(--text); font:16px/1.45 system-ui,-apple-system,Segoe UI,sans-serif; min-height:100vh; }
     button,input,textarea { font:inherit; }
     button { cursor:pointer; }
-    .wrap { max-width:1050px; margin:auto; padding:28px 18px 50px; }
+    .wrap { max-width:1120px; margin:auto; padding:24px 18px 50px; }
     header { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; margin-bottom:22px; }
     h1 { font-size:clamp(1.8rem,5vw,2.6rem); line-height:1.08; margin:0 0 8px; letter-spacing:-.04em; }
     h2 { font-size:1.2rem; margin:0; }
     p { margin:0; }
     .sub,.muted { color:var(--muted); }
+    .brand { display:flex; align-items:center; gap:13px; }
+    .brand-mark { display:grid; place-items:center; width:44px; height:44px; border:1px solid #34415b; border-radius:13px; color:var(--accent); font-size:.78rem; font-weight:800; letter-spacing:.04em; }
+    .main-nav { position:sticky; top:10px; z-index:5; display:flex; gap:5px; padding:6px; margin:0 0 26px; border:1px solid var(--line); border-radius:14px; background:#111827ee; backdrop-filter:blur(12px); }
+    .nav-btn { flex:1; display:flex; align-items:center; justify-content:center; gap:8px; padding:10px 12px; border:0; border-radius:10px; background:transparent; color:var(--muted); font-weight:650; }
+    .nav-btn:hover { background:#202b42; color:var(--text); }
+    .nav-btn[aria-current="page"] { background:#202b42; color:var(--text); }
+    .nav-icon { width:19px; height:19px; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; flex:none; }
+    .page-view { min-height:45vh; }
+    .page-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; margin:0 2px 18px; }
+    .page-heading h2 { font-size:1.4rem; margin:0; }
+    .eyebrow { color:var(--muted); font-size:.72rem; font-weight:750; letter-spacing:.11em; margin:0 0 4px; }
+    .dashboard-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:13px; }
+    .dashboard-card { display:flex; flex-direction:column; gap:12px; min-height:178px; padding:18px; border:1px solid var(--line); border-top:2px solid var(--tone); border-radius:16px; background:rgba(20,27,45,.9); }
+    .dashboard-card.tone-active { --tone:var(--green); }
+    .dashboard-card.tone-review { --tone:var(--accent); }
+    .dashboard-card.tone-waiting { --tone:var(--orange); }
+    .dashboard-card.tone-done { --tone:#c2cce0; }
+    .dashboard-label { color:var(--muted); font-size:.88rem; font-weight:650; }
+    .dashboard-count { font-size:2.25rem; line-height:1; font-weight:750; }
+    .progress-track { height:7px; width:100%; overflow:hidden; border-radius:999px; background:#27334b; }
+    .progress-track span { display:block; width:0; height:100%; border-radius:inherit; background:var(--tone,var(--accent)); transition:width .25s ease; }
+    .dashboard-share { color:var(--muted); font-size:.78rem; margin-top:-6px; }
+    .home-summary { display:flex; justify-content:space-between; gap:12px; margin-top:14px; padding:15px 18px; border:1px solid var(--line); border-radius:13px; background:#111827; color:var(--muted); }
+    .home-summary strong { color:var(--text); }
     .top-actions { display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; }
     .stats { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin:22px 0; }
     .stat,.panel,.task { background:rgba(20,27,45,.94); border:1px solid var(--line); border-radius:16px; }
@@ -50,7 +74,7 @@
     .btn.small { padding:7px 10px; font-size:.88rem; }
     .section-title { display:flex; align-items:center; justify-content:space-between; margin:24px 2px 11px; gap:10px; }
     .list { display:grid; gap:11px; }
-    .task { padding:16px; }
+    .task { padding:14px; border-radius:13px; }
     .task-top { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; }
     .task-title { font-size:1.08rem; font-weight:750; overflow-wrap:anywhere; }
     .task-meta { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-top:9px; }
@@ -76,7 +100,10 @@
     .link-item { display:flex; align-items:center; justify-content:space-between; gap:10px; background:#101729; border:1px solid var(--line); border-radius:10px; padding:9px 11px; }
     .link-item a { color:var(--accent); overflow-wrap:anywhere; }
     .detail-long { white-space:pre-wrap; overflow-wrap:anywhere; color:#d1daea; margin:0 0 16px; }
-    .task-actions { display:flex; gap:8px; flex-wrap:wrap; margin-top:14px; }
+    .task-actions { display:flex; gap:5px; flex-wrap:wrap; margin-top:10px; }
+    .task-actions .btn:not(.primary):not(.good):not(.warn) { background:transparent; border-color:transparent; color:var(--muted); }
+    .task-actions .btn:not(.primary):not(.good):not(.warn):hover { background:#202b42; color:var(--text); }
+    .task-description,.reward { display:none; }
     .reward { color:#ffe3a3 !important; }
     .empty { color:var(--muted); text-align:center; padding:26px 12px; border:1px dashed var(--line); border-radius:14px; }
     .notice { color:var(--muted); font-size:.82rem; padding:12px 2px 0; }
@@ -87,46 +114,65 @@
     dialog h2 { margin-bottom:14px; }
     .toast { position:fixed; bottom:18px; left:50%; transform:translateX(-50%); background:#1e4937; border:1px solid #39865f; border-radius:12px; padding:12px 16px; max-width:calc(100% - 24px); box-shadow:0 10px 30px #0005; z-index:10; }
     footer { color:var(--muted); font-size:.8rem; margin-top:28px; text-align:center; }
-    @media(max-width:650px) { .wrap{padding:21px 13px 38px;} header{display:block;} .top-actions{justify-content:flex-start;margin-top:15px;} .stats{grid-template-columns:1fr 1fr;} .form-grid{grid-template-columns:1fr;} .field.full{grid-column:auto;} .task-top{display:block;} .task-actions .btn{flex:1 1 auto;} .board-columns{grid-template-columns:1fr;} .link-item{align-items:flex-start;} }
+    @media(max-width:650px) { .wrap{padding:18px 13px 38px;} header{display:block;} .brand-mark{width:40px;height:40px;} .main-nav{top:6px;margin-bottom:20px;} .nav-btn{flex-direction:column;gap:3px;padding:8px 4px;font-size:.76rem;} .nav-icon{width:18px;height:18px;} .page-heading{align-items:flex-start;} .dashboard-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;} .dashboard-card{min-height:150px;padding:14px;gap:10px;} .dashboard-count{font-size:2rem;} .stats{grid-template-columns:1fr 1fr;} .form-grid{grid-template-columns:1fr;} .field.full{grid-column:auto;} .task-top{display:block;} .task-actions .btn{flex:1 1 auto;} .board-columns{grid-template-columns:1fr;} .link-item{align-items:flex-start;} }
   </style>
 </head>
 <body>
   <main class="wrap">
-    <header>
-      <div>
-        <h1>TA NA MÃO</h1>
-        <p class="sub">TNM · Veja o que está liberado, há quantos dias e qual é o próximo passo.</p>
-      </div>
-      <div class="top-actions">
-        <button class="btn" id="exportBtn" type="button">Exportar backup</button>
-        <button class="btn primary" id="newBtn" type="button">＋ Nova tarefa</button>
+    <header class="app-header">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">TNM</span>
+        <div>
+          <h1>TA NA MÃO</h1>
+          <p class="sub">Organize, acompanhe e conclua.</p>
+        </div>
       </div>
     </header>
+    <nav class="main-nav" aria-label="Navegação principal">
+      <button class="nav-btn" type="button" data-page="home" aria-current="page">
+        <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m3 10 9-7 9 7M5.5 9v12h13V9M9 21v-7h6v7"/></svg><span>Home</span>
+      </button>
+      <button class="nav-btn" type="button" data-page="tasks">
+        <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01"/></svg><span>Tarefas</span>
+      </button>
+      <button class="nav-btn" type="button" data-page="settings">
+        <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-1.7 2.94-.08-.02a1.7 1.7 0 0 0-1.72.5l-.06.07h-3.4l-.04-.08a1.7 1.7 0 0 0-1.45-.95 1.7 1.7 0 0 0-1.46.95l-.04.08h-3.4l-.06-.07a1.7 1.7 0 0 0-1.72-.5l-.08.02-1.7-2.94.06-.06A1.7 1.7 0 0 0 3.3 15l-.08-.04v-3.4l.08-.04a1.7 1.7 0 0 0 .34-1.88l-.06-.06 1.7-2.94.08.02a1.7 1.7 0 0 0 1.72-.5l.06-.07h3.4l.04.08a1.7 1.7 0 0 0 1.45.95 1.7 1.7 0 0 0 1.46-.95l.04-.08h3.4l.06.07a1.7 1.7 0 0 0 1.72.5l.08-.02 1.7 2.94-.06.06A1.7 1.7 0 0 0 20.7 11l.08.04v3.4z"/></svg><span>Configurações</span>
+      </button>
+    </nav>
 
-    <section class="panel" id="authPanel" aria-label="Sincronização segura">
-      <div class="panel-head"><h2>Sincronização segura</h2><span class="hint" id="authStatus">Modo local</span></div>
-      <div class="form-grid" id="authFields">
-        <div class="field"><label for="authEmail">E-mail</label><input id="authEmail" type="email" autocomplete="email" required placeholder="voce@exemplo.com"></div>
-        <div class="field"><label for="authPassword">Senha</label><input id="authPassword" type="password" autocomplete="current-password" minlength="8" required placeholder="Mínimo de 8 caracteres"></div>
+    <section id="homePage" class="page-view" aria-label="Painel inicial">
+      <div class="page-heading">
+        <div><p class="eyebrow">VISÃO GERAL</p><h2>Resumo das tarefas</h2></div>
+        <span class="muted" id="homeTotalText">0 tarefas</span>
       </div>
-      <div class="actions">
-        <button class="btn primary" id="loginBtn" type="button">Entrar e sincronizar</button>
-        <button class="btn" id="signupBtn" type="button">Criar conta</button>
-        <button class="btn hidden" id="logoutBtn" type="button">Sair</button>
-        <button class="btn hidden" id="syncNowBtn" type="button">Sincronizar agora</button>
-      </div>
-      <p class="hint" id="authMessage" style="margin-top:10px">Entre ou crie sua conta para sincronizar. Seus dados atuais continuam salvos neste navegador.</p>
-      <p class="hint" style="margin-top:5px">Sua senha é tratada diretamente pelo Supabase; não a envie no chat.</p>
+      <section class="dashboard-grid" aria-label="Status geral das tarefas">
+        <article class="dashboard-card tone-active">
+          <span class="dashboard-label">Na sua mão</span><strong class="dashboard-count" id="activeCount">0</strong>
+          <div class="progress-track" id="homeActiveProgress" role="progressbar" aria-label="Na sua mão" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span id="homeActiveBar"></span></div>
+          <span class="dashboard-share" id="homeActiveShare">0% do total</span>
+        </article>
+        <article class="dashboard-card tone-review">
+          <span class="dashboard-label">Com o cliente</span><strong class="dashboard-count" id="reviewCount">0</strong>
+          <div class="progress-track" id="homeReviewProgress" role="progressbar" aria-label="Com o cliente" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span id="homeReviewBar"></span></div>
+          <span class="dashboard-share" id="homeReviewShare">0% do total</span>
+        </article>
+        <article class="dashboard-card tone-waiting">
+          <span class="dashboard-label">Aguardando liberação</span><strong class="dashboard-count" id="waitingCount">0</strong>
+          <div class="progress-track" id="homeWaitingProgress" role="progressbar" aria-label="Aguardando liberação" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span id="homeWaitingBar"></span></div>
+          <span class="dashboard-share" id="homeWaitingShare">0% do total</span>
+        </article>
+        <article class="dashboard-card tone-done">
+          <span class="dashboard-label">Concluídas</span><strong class="dashboard-count" id="homeDoneCount">0</strong>
+          <div class="progress-track" id="homeDoneProgress" role="progressbar" aria-label="Concluídas" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span id="homeDoneBar"></span></div>
+          <span class="dashboard-share" id="homeDoneShare">0% do total</span>
+        </article>
+      </section>
+      <div class="home-summary"><span>Tempo estimado na sua mão</span><strong id="estimateTotal">0 min</strong></div>
     </section>
 
-    <section class="stats" aria-label="Resumo">
-      <div class="stat"><span>Na sua mão</span><strong id="activeCount">0</strong></div>
-      <div class="stat"><span>Com o cliente</span><strong id="reviewCount">0</strong></div>
-      <div class="stat"><span>Aguardando liberação</span><strong id="waitingCount">0</strong></div>
-      <div class="stat"><span>Tempo estimado na sua mão</span><strong id="estimateTotal">0 min</strong></div>
-    </section>
-
-    <section class="panel hidden" id="formPanel">
+    <section id="tasksPage" class="page-view hidden">
+      <div class="page-heading"><div><p class="eyebrow">ORGANIZAÇÃO</p><h2>Tarefas</h2></div><button class="btn primary" id="newBtn" type="button">＋ Nova tarefa</button></div>
+      <section class="panel hidden" id="formPanel">
       <div class="panel-head"><h2 id="formTitle">Nova tarefa</h2><button class="btn ghost small" id="closeFormBtn" type="button" aria-label="Fechar">Fechar</button></div>
       <form id="taskForm">
         <input id="taskId" name="taskId" type="hidden" value="">
@@ -191,7 +237,31 @@
       </div>
       <details style="margin-top:24px"><summary class="muted" style="cursor:pointer">Concluídas (<span id="doneBoardCount">0</span>)</summary><section class="list" id="doneBoardList" style="margin-top:11px"></section></details>
     </div>
-    <footer>Sem login, os dados ficam neste navegador. Ao entrar, sincronizam com sua conta privada. Use “Exportar backup” para guardar uma cópia.</footer>
+    </section>
+    <section id="settingsPage" class="page-view hidden" aria-label="Configurações">
+      <div class="page-heading"><div><p class="eyebrow">PREFERÊNCIAS</p><h2>Configurações</h2></div></div>
+      <section class="panel" id="authPanel" aria-label="Conta e sincronização">
+        <div class="panel-head"><h2>Conta e sincronização</h2><span class="hint" id="authStatus">Modo local</span></div>
+        <div class="form-grid" id="authFields">
+          <div class="field"><label for="authEmail">E-mail</label><input id="authEmail" type="email" autocomplete="email" required placeholder="voce@exemplo.com"></div>
+          <div class="field"><label for="authPassword">Senha</label><input id="authPassword" type="password" autocomplete="current-password" minlength="8" required placeholder="Mínimo de 8 caracteres"></div>
+        </div>
+        <div class="actions">
+          <button class="btn primary" id="loginBtn" type="button">Entrar e sincronizar</button>
+          <button class="btn" id="signupBtn" type="button">Criar conta</button>
+          <button class="btn hidden" id="logoutBtn" type="button">Sair</button>
+          <button class="btn hidden" id="syncNowBtn" type="button">Sincronizar agora</button>
+        </div>
+        <p class="hint" id="authMessage" style="margin-top:10px">Entre ou crie sua conta para sincronizar. Seus dados atuais continuam salvos neste navegador.</p>
+        <p class="hint" style="margin-top:5px">Sua senha é tratada diretamente pelo Supabase; não a envie no chat.</p>
+      </section>
+      <section class="panel" aria-label="Backup dos dados">
+        <div class="panel-head"><h2>Backup das tarefas</h2></div>
+        <p class="muted">Baixe uma cópia JSON para guardar seus dados fora do app.</p>
+        <div class="actions"><button class="btn" id="exportBtn" type="button">Exportar backup</button></div>
+      </section>
+      <footer>Sem login, os dados ficam salvos neste navegador. Ao entrar, sincronizam com sua conta privada.</footer>
+    </section>
   </main>
 
   <dialog id="releaseDialog">
@@ -233,7 +303,7 @@
   </dialog>
   <div id="toast" class="toast hidden" role="status"></div>
   <script src="./config.js?v=1" defer></script>
-  <script src="./app.js?v=4" defer></script>
-  <script>if('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('./sw.js?v=3',{updateViaCache:'none'}).then(registration=>registration.update()).catch(()=>{});</script>
+  <script src="./app.js?v=5" defer></script>
+  <script>if('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('./sw.js?v=4',{updateViaCache:'none'}).then(registration=>registration.update()).catch(()=>{});</script>
 </body>
 </html>
