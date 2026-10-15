@@ -6,7 +6,7 @@ create table if not exists public.nmm_tasks (
   owner_id uuid not null references auth.users(id) on delete cascade,
   title text not null,
   details text not null default '',
-  status text not null check (status in ('active', 'waiting')),
+  status text not null check (status in ('active', 'waiting', 'client_review')),
   release_date date,
   due_date date,
   estimate_minutes integer not null default 60 check (estimate_minutes >= 5),

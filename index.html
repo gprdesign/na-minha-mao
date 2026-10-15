@@ -21,7 +21,7 @@
     p { margin:0; }
     .sub,.muted { color:var(--muted); }
     .top-actions { display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; }
-    .stats { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin:22px 0; }
+    .stats { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin:22px 0; }
     .stat,.panel,.task { background:rgba(20,27,45,.94); border:1px solid var(--line); border-radius:16px; }
     .stat { padding:15px 17px; }
     .stat strong { display:block; font-size:1.55rem; margin-top:4px; }
@@ -57,13 +57,14 @@
     .pill { display:inline-flex; align-items:center; gap:5px; border-radius:999px; padding:4px 9px; font-size:.79rem; font-weight:700; background:#27334b; color:#d9e2f5; }
     .pill.age { color:#0d2016; background:var(--green); }
     .pill.wait { color:#2a1b08; background:var(--orange); }
+    .pill.review { color:#10172a; background:var(--accent); }
     .pill.late { color:#2c1010; background:var(--red); }
     .task-details { color:var(--muted); font-size:.9rem; margin-top:10px; display:flex; gap:6px 16px; flex-wrap:wrap; }
     .task-details span { overflow-wrap:anywhere; }
     .task-description { color:#d1daea; white-space:pre-wrap; overflow-wrap:anywhere; margin-top:10px; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
     .view-switch { display:flex; gap:8px; margin:20px 0 6px; }
     .view-switch .btn[aria-pressed="true"] { background:#789cf0; border-color:#789cf0; color:#10172a; }
-    .board-columns { display:grid; grid-template-columns:1fr 1fr; gap:14px; align-items:start; }
+    .board-columns { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; align-items:start; }
     .board-column { min-width:0; background:#101729; border:1px solid var(--line); border-radius:16px; padding:14px; }
     .board-column h2 { font-size:1.02rem; }
     .board-column .list { margin-top:12px; }
@@ -86,7 +87,7 @@
     dialog h2 { margin-bottom:14px; }
     .toast { position:fixed; bottom:18px; left:50%; transform:translateX(-50%); background:#1e4937; border:1px solid #39865f; border-radius:12px; padding:12px 16px; max-width:calc(100% - 24px); box-shadow:0 10px 30px #0005; z-index:10; }
     footer { color:var(--muted); font-size:.8rem; margin-top:28px; text-align:center; }
-    @media(max-width:650px) { .wrap{padding:21px 13px 38px;} header{display:block;} .top-actions{justify-content:flex-start;margin-top:15px;} .stats{grid-template-columns:1fr 1fr;} .stat:last-child{grid-column:1/-1;} .form-grid{grid-template-columns:1fr;} .field.full{grid-column:auto;} .task-top{display:block;} .task-actions .btn{flex:1 1 auto;} .board-columns{grid-template-columns:1fr;} .link-item{align-items:flex-start;} }
+    @media(max-width:650px) { .wrap{padding:21px 13px 38px;} header{display:block;} .top-actions{justify-content:flex-start;margin-top:15px;} .stats{grid-template-columns:1fr 1fr;} .form-grid{grid-template-columns:1fr;} .field.full{grid-column:auto;} .task-top{display:block;} .task-actions .btn{flex:1 1 auto;} .board-columns{grid-template-columns:1fr;} .link-item{align-items:flex-start;} }
   </style>
 </head>
 <body>
@@ -119,9 +120,10 @@
     </section>
 
     <section class="stats" aria-label="Resumo">
-      <div class="stat"><span>Liberadas</span><strong id="activeCount">0</strong></div>
+      <div class="stat"><span>Na sua mão</span><strong id="activeCount">0</strong></div>
+      <div class="stat"><span>Com o cliente</span><strong id="reviewCount">0</strong></div>
       <div class="stat"><span>Aguardando liberação</span><strong id="waitingCount">0</strong></div>
-      <div class="stat"><span>Tempo estimado pendente</span><strong id="estimateTotal">0 min</strong></div>
+      <div class="stat"><span>Tempo estimado na sua mão</span><strong id="estimateTotal">0 min</strong></div>
     </section>
 
     <section class="panel hidden" id="formPanel">
@@ -172,6 +174,8 @@
     <div id="listView">
       <div class="section-title"><h2>Já está na sua mão</h2><span class="muted" id="activeSortHint">Mais dias liberada primeiro</span></div>
       <section class="list" id="activeList" aria-live="polite"></section>
+      <div class="section-title"><h2>Com o cliente · aguardando aprovação</h2><span class="muted" id="reviewListCount">0</span></div>
+      <section class="list" id="reviewList" aria-live="polite"></section>
       <div class="section-title"><h2>Aguardando liberação</h2></div>
       <section class="list" id="waitingList" aria-live="polite"></section>
       <details style="margin-top:24px">
@@ -182,6 +186,7 @@
     <div id="boardView" class="hidden">
       <div class="board-columns">
         <section class="board-column"><div class="section-title" style="margin:2px 0 0"><h2>Tá na sua mão, bora!</h2><span class="muted" id="activeBoardCount">0</span></div><section class="list" id="activeBoard" aria-live="polite"></section></section>
+        <section class="board-column"><div class="section-title" style="margin:2px 0 0"><h2>Com o cliente</h2><span class="muted" id="reviewBoardCount">0</span></div><section class="list" id="reviewBoard" aria-live="polite"></section></section>
         <section class="board-column"><div class="section-title" style="margin:2px 0 0"><h2>Aguardando liberação</h2><span class="muted" id="waitingBoardCount">0</span></div><section class="list" id="waitingBoard" aria-live="polite"></section></section>
       </div>
       <details style="margin-top:24px"><summary class="muted" style="cursor:pointer">Concluídas (<span id="doneBoardCount">0</span>)</summary><section class="list" id="doneBoardList" style="margin-top:11px"></section></details>
@@ -228,7 +233,7 @@
   </dialog>
   <div id="toast" class="toast hidden" role="status"></div>
   <script src="./config.js?v=1" defer></script>
-  <script src="./app.js?v=3" defer></script>
-  <script>if('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('./sw.js?v=2',{updateViaCache:'none'}).then(registration=>registration.update()).catch(()=>{});</script>
+  <script src="./app.js?v=4" defer></script>
+  <script>if('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('./sw.js?v=3',{updateViaCache:'none'}).then(registration=>registration.update()).catch(()=>{});</script>
 </body>
 </html>

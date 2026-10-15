@@ -6,7 +6,7 @@ PWA responsivo para organizar tarefas pela data em que foram liberadas, com praz
 
 - Cadastro de tarefas liberadas ou aguardando liberação.
 - Contagem de dias desde a liberação, prazo, estimativa, tempo registrado e recompensa.
-- Visualização em lista ou Kanban.
+- Visualização em lista ou Kanban, com estados “Na sua mão”, “Com o cliente” e “Aguardando liberação”.
 - Detalhes, timeline de pedidos/comentários com data, hora e origem, além de links anexados.
 - Timer de foco, edição, conclusão, reabertura e backup JSON.
 - Layout responsivo e cache offline básico.
