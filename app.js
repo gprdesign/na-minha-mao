@@ -13,7 +13,7 @@
   let syncEnabled = localStorage.getItem(SYNC_KEY) === 'true';
   let releaseTarget = null;
   let detailTaskId = null;
-  let currentView = localStorage.getItem('naMinhaMao.view') === 'kanban' ? 'kanban' : 'list';
+  localStorage.removeItem('naMinhaMao.view');
   const storedPage = localStorage.getItem('naMinhaMao.page');
   let currentPage = ['home','tasks','settings'].includes(storedPage) ? storedPage : 'home';
   let toastTimeout;
@@ -225,7 +225,6 @@
     $('reviewCount').textContent = review.length;
     $('reviewListCount').textContent = review.length;
     $('waitingListCount').textContent = waiting.length;
-    $('reviewBoardCount').textContent = review.length;
     $('waitingCount').textContent = waiting.length;
     $('homeDoneCount').textContent = done.length;
     $('homeTotalText').textContent = `${total} tarefa${total === 1 ? '' : 's'}`;
@@ -242,35 +241,13 @@
       $(metric.share).textContent = `${percent}% do total`;
     });
     $('doneCount').textContent = done.length;
-    $('activeBoardCount').textContent = active.length;
-    $('waitingBoardCount').textContent = waiting.length;
-    $('doneBoardCount').textContent = done.length;
     $('estimateTotal').textContent = formatMinutes(active.reduce((sum,t) => sum + (Number(t.estimateMinutes)||0), 0));
     $('activeList').innerHTML = active.length ? active.map(t => renderTask(t)).join('') : '<div class="empty">Nenhuma tarefa liberada por enquanto.</div>';
     $('reviewList').innerHTML = review.length ? review.map(t => renderTask(t)).join('') : '<div class="empty">Nenhuma tarefa aguardando aprovação do cliente.</div>';
     $('waitingList').innerHTML = waiting.length ? waiting.map(t => renderTask(t)).join('') : '<div class="empty">Caixa de entrada vazia por enquanto.</div>';
     $('doneList').innerHTML = done.length ? done.map(t => renderTask(t,true)).join('') : '<div class="empty">As tarefas concluídas aparecem aqui.</div>';
-    $('activeBoard').innerHTML = active.length ? active.map(t => renderTask(t)).join('') : '<div class="empty">Nenhuma tarefa liberada.</div>';
-    $('reviewBoard').innerHTML = review.length ? review.map(t => renderTask(t)).join('') : '<div class="empty">Nenhuma tarefa com o cliente.</div>';
-    $('waitingBoard').innerHTML = waiting.length ? waiting.map(t => renderTask(t)).join('') : '<div class="empty">Caixa de entrada vazia por enquanto.</div>';
-    $('doneBoardList').innerHTML = done.length ? done.map(t => renderTask(t,true)).join('') : '<div class="empty">Nenhuma tarefa concluída.</div>';
-    applyViewMode();
     applyPageMode();
     updateTimerDisplays();
-  }
-  function applyViewMode() {
-    const isBoard = currentView === 'kanban';
-    $('listView').classList.toggle('hidden', isBoard);
-    $('boardView').classList.toggle('hidden', !isBoard);
-    $('listViewBtn').setAttribute('aria-pressed', String(!isBoard));
-    $('listViewBtn').setAttribute('aria-selected', String(!isBoard));
-    $('boardViewBtn').setAttribute('aria-pressed', String(isBoard));
-    $('boardViewBtn').setAttribute('aria-selected', String(isBoard));
-  }
-  function setView(view) {
-    currentView = view === 'kanban' ? 'kanban' : 'list';
-    localStorage.setItem('naMinhaMao.view', currentView);
-    applyViewMode();
   }
   function applyPageMode() {
     const views = { home:'homePage', tasks:'tasksPage', settings:'settingsPage' };
@@ -808,12 +785,6 @@
   $('waitingList').addEventListener('click', handleListAction);
   $('doneList').addEventListener('click', handleListAction);
   $('detailsDialog').addEventListener('click', handleListAction);
-  $('activeBoard').addEventListener('click', handleListAction);
-  $('reviewBoard').addEventListener('click', handleListAction);
-  $('waitingBoard').addEventListener('click', handleListAction);
-  $('doneBoardList').addEventListener('click', handleListAction);
-  $('listViewBtn').addEventListener('click', () => setView('list'));
-  $('boardViewBtn').addEventListener('click', () => setView('kanban'));
   $('closeDetailsBtn').addEventListener('click', () => $('detailsDialog').close());
   $('detailsDialog').addEventListener('close', () => { detailTaskId = null; });
   $('commentForm').addEventListener('submit', onCommentSubmit);

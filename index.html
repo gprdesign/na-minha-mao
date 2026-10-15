@@ -123,13 +123,6 @@
     .task-details { color:var(--muted); font-size:.9rem; margin-top:10px; display:flex; gap:6px 16px; flex-wrap:wrap; }
     .task-details span { overflow-wrap:anywhere; }
     .task-description { color:#d1daea; white-space:pre-wrap; overflow-wrap:anywhere; margin-top:10px; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
-    .view-switch { display:flex; gap:8px; margin:20px 0 6px; }
-    .view-switch .btn[aria-pressed="true"] { background:#789cf0; border-color:#789cf0; color:#10172a; }
-    .board-columns { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; align-items:start; }
-    .board-column { min-width:0; background:#101729; border:1px solid var(--line); border-radius:16px; padding:14px; }
-    .board-column h2 { font-size:1.02rem; }
-    .board-column .section-summary { margin:2px 0 0; }
-    .board-column .list { margin-top:12px; }
     .timeline { display:grid; gap:9px; max-height:270px; overflow:auto; margin:10px 0 15px; }
     .timeline-item { border-left:3px solid #789cf0; background:#101729; border-radius:0 10px 10px 0; padding:10px 12px; }
     .timeline-meta { display:flex; justify-content:space-between; gap:8px; color:var(--muted); font-size:.8rem; margin-bottom:5px; }
@@ -158,7 +151,7 @@
     dialog h2 { margin-bottom:14px; }
     .toast { position:fixed; bottom:92px; left:50%; transform:translateX(-50%); background:#1e4937; border:1px solid #39865f; border-radius:12px; padding:12px 16px; max-width:calc(100% - 24px); box-shadow:0 10px 30px #0005; z-index:10; }
     footer { color:var(--muted); font-size:.8rem; margin-top:28px; text-align:center; }
-    @media(max-width:650px) { .wrap{padding:18px 13px calc(112px + env(safe-area-inset-bottom,0px));} header{display:block;} .brand-mark{width:40px;height:40px;} .main-nav{bottom:calc(8px + env(safe-area-inset-bottom,0px));width:calc(100% - 24px);} .nav-btn{flex-direction:column;gap:3px;padding:8px 4px;font-size:.76rem;} .nav-icon{width:18px;height:18px;} .page-heading{align-items:flex-start;} .next-task-card{align-items:flex-start;padding:15px;gap:12px;} .next-task-cta{font-size:.78rem;align-self:center;} .next-task-title{font-size:1rem;} .dashboard-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;} .dashboard-card{min-height:150px;padding:14px;gap:10px;} .dashboard-count{font-size:2rem;} .stats{grid-template-columns:1fr 1fr;} .form-grid{grid-template-columns:1fr;} .field.full{grid-column:auto;} .task-top{display:flex;} .task-actions .btn{flex:1 1 auto;} .board-columns{grid-template-columns:1fr;} .link-item{align-items:flex-start;} }
+    @media(max-width:650px) { .wrap{padding:18px 13px calc(112px + env(safe-area-inset-bottom,0px));} header{display:block;} .brand-mark{width:40px;height:40px;} .main-nav{bottom:calc(8px + env(safe-area-inset-bottom,0px));width:calc(100% - 24px);} .nav-btn{flex-direction:column;gap:3px;padding:8px 4px;font-size:.76rem;} .nav-icon{width:18px;height:18px;} .page-heading{align-items:flex-start;} .next-task-card{align-items:flex-start;padding:15px;gap:12px;} .next-task-cta{font-size:.78rem;align-self:center;} .next-task-title{font-size:1rem;} .dashboard-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;} .dashboard-card{min-height:150px;padding:14px;gap:10px;} .dashboard-count{font-size:2rem;} .stats{grid-template-columns:1fr 1fr;} .form-grid{grid-template-columns:1fr;} .field.full{grid-column:auto;} .task-top{display:flex;} .task-actions .btn{flex:1 1 auto;} .link-item{align-items:flex-start;} }
     @media(prefers-reduced-motion:reduce) { .next-task-card,.task-target-highlight { animation:none; } }
   </style>
 </head>
@@ -261,10 +254,6 @@
       </form>
     </section>
 
-    <div class="view-switch" role="tablist" aria-label="Visualização das tarefas">
-      <button class="btn" id="listViewBtn" type="button" role="tab" aria-selected="true" aria-pressed="true">Lista</button>
-      <button class="btn" id="boardViewBtn" type="button" role="tab" aria-selected="false" aria-pressed="false">Kanban</button>
-    </div>
     <div id="listView">
       <details class="task-section" open>
         <summary class="section-summary"><span class="section-index">[1/3]</span><h2>A bola tá contigo!!</h2><span class="section-count" id="activeListCount">0</span></summary>
@@ -282,14 +271,6 @@
         <summary class="muted" style="cursor:pointer">Concluídas (<span id="doneCount">0</span>)</summary>
         <section class="list" id="doneList" style="margin-top:11px"></section>
       </details>
-    </div>
-    <div id="boardView" class="hidden">
-      <div class="board-columns">
-        <section class="board-column"><details class="board-section" open><summary class="section-summary"><span class="section-index">[1/3]</span><h2>A bola tá contigo!!</h2><span class="section-count" id="activeBoardCount">0</span></summary><section class="list" id="activeBoard" aria-live="polite"></section></details></section>
-        <section class="board-column"><details class="board-section"><summary class="section-summary"><span class="section-index">[2/3]</span><h2>Passe perfeito pro cliente! Vamos esperar...</h2><span class="section-count" id="reviewBoardCount">0</span></summary><section class="list" id="reviewBoard" aria-live="polite"></section></details></section>
-        <section class="board-column"><details class="board-section"><summary class="section-summary"><span class="section-index">[3/3]</span><h2>Caixa de entrada — ideias, briefing e orçamento</h2><span class="section-count" id="waitingBoardCount">0</span></summary><section class="list" id="waitingBoard" aria-live="polite"></section></details></section>
-      </div>
-      <details class="done-section" style="margin-top:24px"><summary class="muted" style="cursor:pointer">Concluídas (<span id="doneBoardCount">0</span>)</summary><section class="list" id="doneBoardList" style="margin-top:11px"></section></details>
     </div>
     </section>
     <section id="settingsPage" class="page-view hidden" aria-label="Configurações">
@@ -360,7 +341,7 @@
   </dialog>
   <div id="toast" class="toast hidden" role="status"></div>
   <script src="./config.js?v=1" defer></script>
-  <script src="./app.js?v=7" defer></script>
-  <script>if('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('./sw.js?v=6',{updateViaCache:'none'}).then(registration=>registration.update()).catch(()=>{});</script>
+  <script src="./app.js?v=8" defer></script>
+  <script>if('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('./sw.js?v=7',{updateViaCache:'none'}).then(registration=>registration.update()).catch(()=>{});</script>
 </body>
 </html>
