@@ -216,7 +216,7 @@
       #tasksPage #listView > .task-section + .task-section > .section-summary { margin-top:8px; }
     }
     @media(orientation:landscape) {
-      #tasksPage #listView { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); align-items:start; gap:12px; }
+      #tasksPage #listView { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); align-items:stretch; gap:12px; }
       #tasksPage #listView > .task-section { min-width:0; margin-top:0; }
       #tasksPage #listView > .task-section:nth-child(-n+2) { border-right:1px solid var(--line); padding-right:12px; }
       #tasksPage #listView > .task-section > .section-summary { margin:8px 2px 12px; align-items:flex-start; }
