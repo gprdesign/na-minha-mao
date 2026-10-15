@@ -259,9 +259,9 @@
   }
   function renderHistory() {
     const entries = [];
-    const pushEntry = (task, action, createdAt, detail = '') => {
+    const pushEntry = (task, action, createdAt, detail = '', targetSection = 'comments', targetId = '') => {
       if (!createdAt) return;
-      entries.push({ taskTitle:task.title, action, createdAt, detail });
+      entries.push({ taskId:String(task.id), taskTitle:task.title, action, createdAt, detail, targetSection, targetId:String(targetId || '') });
     };
     for (const task of tasks) {
       const comments = Array.isArray(task.comments) ? task.comments : [];
@@ -274,19 +274,19 @@
         const preview = isSystem ? '' : rawText.replace(/\s+/g, ' ').trim();
         const detail = preview.length > 110 ? `${preview.slice(0,107).trim()}…` : preview;
         const action = isSystem ? rawText.slice(HISTORY_PREFIX.length) : `Registro adicionado · ${comment.source || 'Manual'}`;
-        pushEntry(task, action, comment.createdAt || task.createdAt, detail);
+        pushEntry(task, action, comment.createdAt || task.createdAt, detail, 'comments', comment.id);
       }
       if (task.createdAt && !systemActions.includes('Tarefa criada')) pushEntry(task, 'Tarefa criada', task.createdAt);
       if (task.completedAt && !systemActions.includes('Tarefa concluída')) pushEntry(task, 'Tarefa concluída', task.completedAt);
       for (const link of (Array.isArray(task.links) ? task.links : [])) {
-        pushEntry(task, `Link anexado: ${link.label || link.url || 'Link'}`, link.createdAt);
+        pushEntry(task, `Link anexado: ${link.label || link.url || 'Link'}`, link.createdAt, '', 'links', link.id);
       }
       for (const item of (Array.isArray(task.subtasks) ? task.subtasks : [])) {
         if (!item) continue;
         const text = String(item.text || 'Subtarefa');
-        if (item.createdAt) pushEntry(task, `Subtarefa adicionada: ${text}`, item.createdAt);
-        if (item.completedAt && !systemActions.includes(`Subtarefa concluída: ${text}`)) pushEntry(task, `Subtarefa concluída: ${text}`, item.completedAt);
-        if (item.deletedAt) pushEntry(task, `Subtarefa removida: ${text}`, item.deletedAt);
+        if (item.createdAt) pushEntry(task, `Subtarefa adicionada: ${text}`, item.createdAt, '', 'subtasks', item.id);
+        if (item.completedAt && !systemActions.includes(`Subtarefa concluída: ${text}`)) pushEntry(task, `Subtarefa concluída: ${text}`, item.completedAt, '', 'subtasks', item.id);
+        if (item.deletedAt) pushEntry(task, `Subtarefa removida: ${text}`, item.deletedAt, '', 'subtasks', item.id);
       }
     }
     const timestamp = value => {
@@ -306,7 +306,7 @@
       return;
     }
     const visible = historyExpanded ? entries : entries.slice(0,3);
-    list.innerHTML = visible.map(entry => `<article class="history-item"><div class="history-main"><div class="history-action">${escapeHTML(entry.action)}</div><div class="history-task">${escapeHTML(entry.taskTitle)}</div>${entry.detail ? `<div class="history-detail">${escapeHTML(entry.detail)}</div>` : ''}</div><time class="history-time" datetime="${escapeHTML(entry.createdAt)}">${escapeHTML(formatTimestamp(entry.createdAt))}</time></article>`).join('');
+    list.innerHTML = visible.map(entry => `<article class="history-item"><div class="history-main"><div class="history-action">${escapeHTML(entry.action)}</div><div class="history-task">${escapeHTML(entry.taskTitle)}</div>${entry.detail ? `<div class="history-detail">${escapeHTML(entry.detail)}</div>` : ''}</div><div class="history-side"><time class="history-time" datetime="${escapeHTML(entry.createdAt)}">${escapeHTML(formatTimestamp(entry.createdAt))}</time><button class="btn small ghost history-open" type="button" data-history-open="${escapeHTML(entry.taskId)}" data-history-section="${escapeHTML(entry.targetSection)}" data-history-target="${escapeHTML(entry.targetId)}" aria-label="Abrir ${escapeHTML(entry.action)} na tarefa ${escapeHTML(entry.taskTitle)}">Abrir ↗</button></div></article>`).join('');
     button.classList.toggle('hidden', entries.length <= 3);
     button.textContent = historyExpanded ? 'Ver menos' : 'Ver mais';
     button.setAttribute('aria-expanded', String(historyExpanded));
@@ -355,6 +355,26 @@
     renderDetails();
     $('detailsDialog').showModal();
   }
+  function openHistoryEntry(taskId, targetSection = 'comments', targetId = '') {
+    const task = tasks.find(item => String(item.id) === String(taskId));
+    if (!task) { showToast('Essa tarefa não está mais disponível.'); return; }
+    openDetails(task.id);
+    requestAnimationFrame(() => {
+      let target = null;
+      if (targetId && targetSection === 'comments') {
+        target = Array.from($('commentTimeline').querySelectorAll('[data-comment-id]')).find(node => node.dataset.commentId === String(targetId));
+      } else if (targetId && targetSection === 'links') {
+        target = Array.from($('linksList').querySelectorAll('[data-link-id]')).find(node => node.dataset.linkId === String(targetId));
+      } else if (targetId && targetSection === 'subtasks') {
+        target = Array.from($('subtasksList').querySelectorAll('[data-subtask-row]')).find(node => node.dataset.subtaskRow === String(targetId));
+      }
+      if (!target) target = $(targetSection === 'links' ? 'linksSection' : targetSection === 'subtasks' ? 'subtasksSection' : 'commentSection');
+      if (!target) return;
+      target.scrollIntoView({ behavior:'smooth', block:'center' });
+      target.classList.add('history-target-highlight');
+      window.setTimeout(() => target.classList.remove('history-target-highlight'), 2200);
+    });
+  }
   function renderDetails() {
     const task = tasks.find(item => item.id === detailTaskId);
     if (!task) return;
@@ -393,14 +413,14 @@
       const isHistory = text.startsWith(HISTORY_PREFIX);
       const source = isHistory ? 'Sistema' : (comment.source || 'Manual');
       const displayText = isHistory ? text.slice(HISTORY_PREFIX.length) : text;
-      return `<article class="timeline-item"><div class="timeline-meta"><span>${escapeHTML(source)}</span><span>${escapeHTML(formatTimestamp(comment.createdAt))}</span></div><div class="timeline-text">${escapeHTML(displayText)}</div></article>`;
+      return `<article class="timeline-item" data-comment-id="${escapeHTML(comment.id || '')}"><div class="timeline-meta"><span>${escapeHTML(source)}</span><time datetime="${escapeHTML(comment.createdAt || '')}">${escapeHTML(formatTimestamp(comment.createdAt))}</time></div><div class="timeline-text">${escapeHTML(displayText)}</div></article>`;
     }).join('') : '<div class="empty">Ainda não há pedidos ou comentários registrados.</div>';
     const links = task.links || [];
     $('linksList').innerHTML = links.length ? links.map(link => {
       const url = safeHttpUrl(link.url);
       const label = escapeHTML(link.label || link.url);
       const target = url ? `<a href="${escapeHTML(url.href)}" target="_blank" rel="noopener noreferrer">${label}</a><div class="hint">${escapeHTML(url.href)}</div>` : `<span>${label} — link inválido</span>`;
-      return `<div class="link-item"><div>${target}</div><button class="btn small ghost" type="button" data-link-action="remove" data-id="${escapeHTML(link.id)}">Remover</button></div>`;
+      return `<div class="link-item" data-link-id="${escapeHTML(link.id || '')}"><div>${target}</div><button class="btn small ghost" type="button" data-link-action="remove" data-id="${escapeHTML(link.id)}">Remover</button></div>`;
     }).join('') : '<div class="empty">Nenhum link anexado.</div>';
   }
   function renderSubtasks(task) {
@@ -414,7 +434,7 @@
       const rowClass = item.completedAt ? ' is-complete' : '';
       const label = escapeHTML(item.text || 'Subtarefa');
       const itemId = escapeHTML(item.id);
-      return `<div class="subtask-row${rowClass}"><label class="subtask-main"><input type="checkbox" data-subtask-id="${itemId}" aria-label="Concluir subtarefa: ${label}" ${checked}><span class="subtask-text">${label}</span></label><button class="btn small ghost subtask-delete" type="button" data-subtask-delete="${itemId}" aria-label="Remover subtarefa: ${label}">Remover</button></div>`;
+      return `<div class="subtask-row${rowClass}" data-subtask-row="${itemId}"><label class="subtask-main"><input type="checkbox" data-subtask-id="${itemId}" aria-label="Concluir subtarefa: ${label}" ${checked}><span class="subtask-text">${label}</span></label><button class="btn small ghost subtask-delete" type="button" data-subtask-delete="${itemId}" aria-label="Remover subtarefa: ${label}">Remover</button></div>`;
     }).join('') : '<div class="empty">Nenhuma subtarefa por enquanto.</div>';
   }
   function onSubtaskSubmit(event) {
@@ -933,6 +953,10 @@
     if (button) openTaskInList(button.dataset.openTask);
   });
   $('historyMoreBtn').addEventListener('click', () => { historyExpanded = !historyExpanded; renderHistory(); });
+  $('homeHistoryList').addEventListener('click', event => {
+    const button = event.target.closest('button[data-history-open]');
+    if (button) openHistoryEntry(button.dataset.historyOpen, button.dataset.historySection, button.dataset.historyTarget);
+  });
   $('newBtn').addEventListener('click', openNewForm);
   $('closeFormBtn').addEventListener('click', closeForm);
   $('taskForm').addEventListener('submit', onSubmitTask);
