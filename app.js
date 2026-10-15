@@ -557,12 +557,12 @@
     $('releaseDialog').showModal();
   }
   function handleTaskCardClick(event) {
-    if (event.target.closest('button,a,input,select,textarea,summary,details')) return;
+    if (event.target.closest('button,a,input,select,textarea,summary,.task-menu')) return;
     const card = event.target.closest('.task[data-open-task]');
     if (card) openDetails(card.dataset.openTask);
   }
   function handleTaskCardKeydown(event) {
-    if (!['Enter',' '].includes(event.key) || event.target.closest('button,a,input,select,textarea,summary,details')) return;
+    if (!['Enter',' '].includes(event.key) || event.target.closest('button,a,input,select,textarea,summary,.task-menu')) return;
     const card = event.target.closest('.task[data-open-task]');
     if (!card || event.target !== card) return;
     event.preventDefault();
