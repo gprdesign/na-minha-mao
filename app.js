@@ -191,12 +191,12 @@
     const dueText = task.dueDate ? `Entrega: ${formatDate(task.dueDate)}` : 'Sem data de entrega';
     const dueClass = task.dueDate ? 'task-due' : 'task-due empty';
     const taskId = escapeHTML(task.id);
-    const openButton = `<button class="btn small open" data-action="details" data-id="${taskId}" type="button" aria-label="Abrir tarefa: ${escapeHTML(task.title)}">ABRIR</button>`;
     const completeButton = completed ? '' : `<button class="btn small good" data-action="complete" data-id="${taskId}" type="button">CONCLUIR</button>`;
     const menu = `<details class="task-menu"><summary aria-label="Mais opções" title="Mais opções">⋮</summary><div class="task-menu-popover"><button type="button" data-action="delete" data-id="${taskId}">EXCLUIR</button></div></details>`;
-    return `<article class="task" data-task="${taskId}" tabindex="-1">
+    const actions = completeButton ? `<div class="task-actions">${completeButton}</div>` : '';
+    return `<article class="task task-clickable" data-task="${taskId}" data-open-task="${taskId}" tabindex="0" aria-label="Abrir tarefa: ${escapeHTML(task.title)}" aria-keyshortcuts="Enter Space">
       <div class="task-top"><div class="task-main"><div class="task-title">${escapeHTML(task.title)}</div><div class="task-summary"><span class="task-release">${escapeHTML(releaseText)}</span><span class="${dueClass}">${escapeHTML(dueText)}</span></div></div>${menu}</div>
-      <div class="task-actions">${openButton}${completeButton}</div>
+      ${actions}
     </article>`;
   }
   function render() {
@@ -306,7 +306,7 @@
       return;
     }
     const visible = historyExpanded ? entries : entries.slice(0,3);
-    list.innerHTML = visible.map(entry => `<article class="history-item"><div class="history-main"><div class="history-action">${escapeHTML(entry.action)}</div><div class="history-task">${escapeHTML(entry.taskTitle)}</div>${entry.detail ? `<div class="history-detail">${escapeHTML(entry.detail)}</div>` : ''}</div><div class="history-side"><time class="history-time" datetime="${escapeHTML(entry.createdAt)}">${escapeHTML(formatTimestamp(entry.createdAt))}</time><button class="btn small ghost history-open" type="button" data-history-open="${escapeHTML(entry.taskId)}" data-history-section="${escapeHTML(entry.targetSection)}" data-history-target="${escapeHTML(entry.targetId)}" aria-label="Abrir ${escapeHTML(entry.action)} na tarefa ${escapeHTML(entry.taskTitle)}">Abrir ↗</button></div></article>`).join('');
+    list.innerHTML = visible.map(entry => `<button class="history-item" type="button" data-history-open="${escapeHTML(entry.taskId)}" data-history-section="${escapeHTML(entry.targetSection)}" data-history-target="${escapeHTML(entry.targetId)}" aria-label="Abrir ${escapeHTML(entry.action)} na tarefa ${escapeHTML(entry.taskTitle)}"><span class="history-main"><span class="history-action">${escapeHTML(entry.action)}</span><span class="history-task">${escapeHTML(entry.taskTitle)}</span>${entry.detail ? `<span class="history-detail">${escapeHTML(entry.detail)}</span>` : ''}</span><span class="history-side"><time class="history-time" datetime="${escapeHTML(entry.createdAt)}">${escapeHTML(formatTimestamp(entry.createdAt))}</time><span class="history-arrow" aria-hidden="true">↗</span></span></button>`).join('');
     button.classList.toggle('hidden', entries.length <= 3);
     button.textContent = historyExpanded ? 'Ver menos' : 'Ver mais';
     button.setAttribute('aria-expanded', String(historyExpanded));
@@ -325,6 +325,17 @@
     localStorage.setItem('naMinhaMao.page', currentPage);
     applyPageMode();
     if (currentPage === 'tasks') applyViewMode();
+  }
+  function openDashboardStatus(status) {
+    const listId = { active:'activeList', review:'reviewList', waiting:'waitingList', done:'doneList' }[status];
+    const list = listId ? $(listId) : null;
+    if (!list) return;
+    currentPage = 'tasks';
+    localStorage.setItem('naMinhaMao.page', currentPage);
+    applyPageMode();
+    const section = list.closest('details');
+    if (section) section.open = true;
+    requestAnimationFrame(() => (section || list).scrollIntoView({ behavior:'smooth', block:'start' }));
   }
   function openTaskInList(taskId) {
     const task = tasks.find(item => String(item.id) === String(taskId) && !item.completedAt);
@@ -544,6 +555,18 @@
     $('releaseEstimate').value = task.estimateMinutes || 60;
     $('releaseReward').value = task.reward || '';
     $('releaseDialog').showModal();
+  }
+  function handleTaskCardClick(event) {
+    if (event.target.closest('button,a,input,select,textarea,summary,details')) return;
+    const card = event.target.closest('.task[data-open-task]');
+    if (card) openDetails(card.dataset.openTask);
+  }
+  function handleTaskCardKeydown(event) {
+    if (!['Enter',' '].includes(event.key) || event.target.closest('button,a,input,select,textarea,summary,details')) return;
+    const card = event.target.closest('.task[data-open-task]');
+    if (!card || event.target !== card) return;
+    event.preventDefault();
+    openDetails(card.dataset.openTask);
   }
   function handleListAction(event) {
     const button = event.target.closest('button[data-action]');
@@ -959,6 +982,10 @@
     const button = event.target.closest('button[data-open-task]');
     if (button) openTaskInList(button.dataset.openTask);
   });
+  $('homePage').addEventListener('click', event => {
+    const card = event.target.closest('button[data-dashboard-status]');
+    if (card) openDashboardStatus(card.dataset.dashboardStatus);
+  });
   $('historyMoreBtn').addEventListener('click', () => { historyExpanded = !historyExpanded; renderHistory(); });
   $('homeHistoryList').addEventListener('click', event => {
     const button = event.target.closest('button[data-history-open]');
@@ -971,11 +998,18 @@
   $('releaseForm').addEventListener('submit', onReleaseSubmit);
   $('cancelReleaseBtn').addEventListener('click', () => $('releaseDialog').close());
   $('exportBtn').addEventListener('click', exportBackup);
-  $('activeList').addEventListener('click', handleListAction);
-  $('reviewList').addEventListener('click', handleListAction);
-  $('waitingList').addEventListener('click', handleListAction);
-  $('doneList').addEventListener('click', handleListAction);
+  ['activeList','reviewList','waitingList','doneList'].forEach(id => {
+    $(id).addEventListener('click', handleTaskCardClick);
+    $(id).addEventListener('keydown', handleTaskCardKeydown);
+    $(id).addEventListener('click', handleListAction);
+  });
   $('detailsDialog').addEventListener('click', handleListAction);
+  $('detailsDialog').addEventListener('click', event => {
+    const dialog = event.currentTarget;
+    if (event.target !== dialog) return;
+    const rect = dialog.getBoundingClientRect();
+    if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) dialog.close();
+  });
   $('closeDetailsBtn').addEventListener('click', () => $('detailsDialog').close());
   $('detailsDialog').addEventListener('close', () => { detailTaskId = null; });
   $('subtaskForm').addEventListener('submit', onSubtaskSubmit);
