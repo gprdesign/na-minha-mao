@@ -178,36 +178,18 @@
   function closeForm() { $('formPanel').classList.add('hidden'); }
   function renderTask(task, completed = false) {
     const age = daysSince(task.releaseDate);
-    const ageText = age === 0 ? 'Liberada hoje' : `Há ${age} ${age === 1 ? 'dia' : 'dias'} liberada`;
-    const due = task.dueDate ? `Entrega: ${escapeHTML(formatDate(task.dueDate))}` : 'Sem data de entrega';
-    const dueClass = dueStatus(task) ? 'late' : 'age';
-    const blocker = task.blocker ? `<div class="task-details"><span>Falta: ${escapeHTML(task.blocker)}</span></div>` : '';
-    const description = task.details ? `<div class="task-description">${escapeHTML(task.details)}</div>` : '';
-    const reward = task.reward ? `<div class="task-details reward"><span>🎁 ${escapeHTML(task.reward)}</span></div>` : '';
-    const commentCount = (task.comments || []).length;
-    const linkCount = (task.links || []).length;
-    const detailsButton = `<button class="btn small" data-action="details" data-id="${escapeHTML(task.id)}" type="button" aria-label="Detalhes: ${commentCount} pedidos e ${linkCount} links">Detalhes</button>`;
-    const progress = task.estimateMinutes ? `${formatMinutes(task.estimateMinutes)} estimados · ${formatMinutes(Math.floor(elapsedSeconds(task)/60))} registrados` : '';
-    const timerButton = completed || task.status !== 'active' ? '' : `<button class="btn small ${timer?.taskId === task.id && timer.startedAt ? 'warn' : 'good'}" data-action="timer" data-id="${escapeHTML(task.id)}" type="button">${timer?.taskId === task.id && timer.startedAt ? 'Pausar foco' : 'Começar foco'}</button>`;
-    const completeButton = completed
-      ? `<button class="btn small" data-action="reopen" data-id="${escapeHTML(task.id)}" type="button">Reabrir</button>`
-      : `<button class="btn small primary" data-action="complete" data-id="${escapeHTML(task.id)}" type="button">Concluir</button>`;
-    const deleteButton = `<button class="btn small ghost" data-action="delete" data-id="${escapeHTML(task.id)}" type="button">Excluir</button>`;
-    const releaseButton = !completed && task.status === 'waiting' ? `<button class="btn small primary" data-action="release" data-id="${escapeHTML(task.id)}" type="button">Já está liberada</button>` : '';
-    const editButton = !completed ? `<button class="btn small" data-action="edit" data-id="${escapeHTML(task.id)}" type="button">Editar</button>` : '';
-    const activeMeta = task.status === 'active'
-      ? `<span class="pill ${dueClass}">${escapeHTML(ageText)}</span><span class="pill ${dueStatus(task) ? 'late' : ''}">${due}</span>`
-      : task.status === 'client_review'
-        ? `<span class="pill review">Com o cliente · aguardando aprovação</span><span class="pill ${dueStatus(task) ? 'late' : ''}">${due}</span>`
-        : `<span class="pill wait">Aguardando liberação</span>`;
-    return `<article class="task" data-task="${escapeHTML(task.id)}" tabindex="-1">
-      <div class="task-top"><div><div class="task-title">${escapeHTML(task.title)}</div><div class="task-meta">${activeMeta}</div></div>${task.status === 'active' && !completed ? `<span class="pill timer-readout" data-id="${escapeHTML(task.id)}">${escapeHTML(remainingLabel(task))}</span>` : ''}</div>
-      ${blocker}
-      ${description}
-      <div class="task-details"><span>⏱ ${escapeHTML(progress)}</span>${task.status !== 'waiting' ? `<span>📅 Liberada: ${escapeHTML(formatDate(task.releaseDate))}</span>` : ''}</div>
-      ${reward}
-      ${completed && task.completedAt ? `<div class="task-details"><span>Concluída em ${escapeHTML(formatDate(task.completedDate || task.completedAt.slice(0,10)))}</span></div>` : ''}
-      <div class="task-actions">${releaseButton}${timerButton}${editButton}${detailsButton}${completeButton}${deleteButton}</div>
+    const releaseText = task.releaseDate
+      ? `${age === 0 ? 'Liberada hoje' : `Liberada há ${age} ${age === 1 ? 'dia' : 'dias'}`} · ${formatDate(task.releaseDate)}`
+      : (task.status === 'waiting' ? 'Ainda não liberada' : 'Data de liberação não registrada');
+    const dueText = task.dueDate ? `Entrega: ${formatDate(task.dueDate)}` : 'Sem data de entrega';
+    const dueClass = task.dueDate ? 'task-due' : 'task-due empty';
+    const taskId = escapeHTML(task.id);
+    const openButton = `<button class="btn small open" data-action="details" data-id="${taskId}" type="button" aria-label="Abrir tarefa: ${escapeHTML(task.title)}">ABRIR</button>`;
+    const completeButton = completed ? '' : `<button class="btn small good" data-action="complete" data-id="${taskId}" type="button">CONCLUIR</button>`;
+    const menu = `<details class="task-menu"><summary aria-label="Mais opções" title="Mais opções">⋮</summary><div class="task-menu-popover"><button type="button" data-action="delete" data-id="${taskId}">EXCLUIR</button></div></details>`;
+    return `<article class="task" data-task="${taskId}" tabindex="-1">
+      <div class="task-top"><div class="task-main"><div class="task-title">${escapeHTML(task.title)}</div><div class="task-summary"><span class="task-release">${escapeHTML(releaseText)}</span><span class="${dueClass}">${escapeHTML(dueText)}</span></div></div>${menu}</div>
+      <div class="task-actions">${openButton}${completeButton}</div>
     </article>`;
   }
   function render() {
@@ -239,8 +221,10 @@
       $('nextTaskContent').innerHTML = '<div class="next-task-empty"><span class="next-task-kicker">PRÓXIMA TAREFA</span><p>Nenhuma tarefa liberada para começar.</p></div>';
     }
     $('activeCount').textContent = active.length;
+    $('activeListCount').textContent = active.length;
     $('reviewCount').textContent = review.length;
     $('reviewListCount').textContent = review.length;
+    $('waitingListCount').textContent = waiting.length;
     $('reviewBoardCount').textContent = review.length;
     $('waitingCount').textContent = waiting.length;
     $('homeDoneCount').textContent = done.length;
@@ -262,13 +246,13 @@
     $('waitingBoardCount').textContent = waiting.length;
     $('doneBoardCount').textContent = done.length;
     $('estimateTotal').textContent = formatMinutes(active.reduce((sum,t) => sum + (Number(t.estimateMinutes)||0), 0));
-    $('activeList').innerHTML = active.length ? active.map(t => renderTask(t)).join('') : '<div class="empty">Nenhuma tarefa liberada por enquanto. Quando estiver com tudo em mãos, registre a liberação.</div>';
+    $('activeList').innerHTML = active.length ? active.map(t => renderTask(t)).join('') : '<div class="empty">Nenhuma tarefa liberada por enquanto.</div>';
     $('reviewList').innerHTML = review.length ? review.map(t => renderTask(t)).join('') : '<div class="empty">Nenhuma tarefa aguardando aprovação do cliente.</div>';
-    $('waitingList').innerHTML = waiting.length ? waiting.map(t => renderTask(t)).join('') : '<div class="empty">Nada aguardando liberação.</div>';
+    $('waitingList').innerHTML = waiting.length ? waiting.map(t => renderTask(t)).join('') : '<div class="empty">Caixa de entrada vazia por enquanto.</div>';
     $('doneList').innerHTML = done.length ? done.map(t => renderTask(t,true)).join('') : '<div class="empty">As tarefas concluídas aparecem aqui.</div>';
     $('activeBoard').innerHTML = active.length ? active.map(t => renderTask(t)).join('') : '<div class="empty">Nenhuma tarefa liberada.</div>';
     $('reviewBoard').innerHTML = review.length ? review.map(t => renderTask(t)).join('') : '<div class="empty">Nenhuma tarefa com o cliente.</div>';
-    $('waitingBoard').innerHTML = waiting.length ? waiting.map(t => renderTask(t)).join('') : '<div class="empty">Nenhuma tarefa aguardando.</div>';
+    $('waitingBoard').innerHTML = waiting.length ? waiting.map(t => renderTask(t)).join('') : '<div class="empty">Caixa de entrada vazia por enquanto.</div>';
     $('doneBoardList').innerHTML = done.length ? done.map(t => renderTask(t,true)).join('') : '<div class="empty">Nenhuma tarefa concluída.</div>';
     applyViewMode();
     applyPageMode();
@@ -337,6 +321,32 @@
     if (!task) return;
     $('detailTitle').textContent = task.title;
     $('detailDescription').textContent = task.details || 'Nenhum detalhe adicional cadastrado.';
+    const age = daysSince(task.releaseDate);
+    const statusLabel = task.completedAt ? 'Concluída' : ({ active:'A bola tá contigo!!', client_review:'Passe perfeito pro cliente! Vamos esperar...', waiting:'Caixa de entrada — ideias, briefing e orçamento' }[task.status] || 'Status não informado');
+    const releaseLabel = task.releaseDate
+      ? `${age === 0 ? 'Liberada hoje' : `Liberada há ${age} ${age === 1 ? 'dia' : 'dias'}`} · ${formatDate(task.releaseDate)}`
+      : (task.status === 'waiting' ? 'Ainda não liberada' : 'Data de liberação não registrada');
+    const metaItems = [
+      { label:'Status', value:statusLabel },
+      { label:'Liberação', value:releaseLabel },
+      { label:'Entrega', value:task.dueDate ? formatDate(task.dueDate) : 'Sem data de entrega', className:task.dueDate ? 'due' : '' },
+      { label:'Estimativa', value:formatMinutes(task.estimateMinutes) },
+      { label:'Tempo registrado', value:formatMinutes(Math.floor(elapsedSeconds(task)/60)) },
+      task.blocker ? { label:'Falta para liberar', value:task.blocker } : null,
+      task.reward ? { label:'Recompensa', value:task.reward } : null,
+      task.completedAt ? { label:'Concluída em', value:formatDate(task.completedDate || task.completedAt.slice(0,10)) } : null,
+      timer?.taskId === task.id && timer.startedAt ? { label:'Foco atual', value:remainingLabel(task) } : null
+    ].filter(Boolean);
+    $('detailMeta').innerHTML = metaItems.map(item => `<div class="detail-meta-item ${item.className || ''}"><span class="detail-meta-label">${escapeHTML(item.label)}</span><strong class="detail-meta-value">${escapeHTML(item.value)}</strong></div>`).join('');
+    const detailActions = [];
+    if (task.completedAt) {
+      detailActions.push(`<button class="btn small" data-action="reopen" data-id="${escapeHTML(task.id)}" type="button">Reabrir</button>`);
+    } else {
+      if (task.status === 'active') detailActions.push(`<button class="btn small ${timer?.taskId === task.id && timer.startedAt ? 'warn' : 'good'}" data-action="timer" data-id="${escapeHTML(task.id)}" type="button">${timer?.taskId === task.id && timer.startedAt ? 'Pausar foco' : 'Começar foco'}</button>`);
+      if (task.status === 'waiting') detailActions.push(`<button class="btn small primary" data-action="release" data-id="${escapeHTML(task.id)}" type="button">Liberar para começar</button>`);
+      detailActions.push(`<button class="btn small" data-action="edit" data-id="${escapeHTML(task.id)}" type="button">Editar</button>`);
+    }
+    $('detailTaskActions').innerHTML = detailActions.join('');
     const comments = (task.comments || []).slice().sort((a,b) => a.createdAt.localeCompare(b.createdAt));
     $('commentTimeline').innerHTML = comments.length ? comments.map(comment => `<article class="timeline-item"><div class="timeline-meta"><span>${escapeHTML(comment.source || 'Manual')}</span><span>${escapeHTML(formatTimestamp(comment.createdAt))}</span></div><div class="timeline-text">${escapeHTML(comment.text)}</div></article>`).join('') : '<div class="empty">Ainda não há pedidos ou comentários registrados.</div>';
     const links = task.links || [];
@@ -399,6 +409,7 @@
       showToast(`Foco iniciado: ${task?.title || 'tarefa'}`);
     }
     save(); render();
+    if ($('detailsDialog').open) renderDetails();
   }
   function openRelease(taskId) {
     const task = tasks.find(t => t.id === taskId);
@@ -417,8 +428,12 @@
     const task = tasks.find(t => t.id === taskId);
     if (!task) return;
     switch (button.dataset.action) {
-      case 'release': openRelease(taskId); break;
-      case 'edit': openEditForm(taskId); break;
+      case 'release':
+        if ($('detailsDialog').open) $('detailsDialog').close();
+        openRelease(taskId); break;
+      case 'edit':
+        if ($('detailsDialog').open) $('detailsDialog').close();
+        openEditForm(taskId); break;
       case 'details': openDetails(taskId); break;
       case 'timer': toggleTimer(taskId); break;
       case 'complete': {
@@ -431,7 +446,9 @@
         break;
       }
       case 'reopen':
-        task.completedAt = null; task.completedDate = null; save(); render(); showToast('Tarefa reaberta.'); break;
+        task.completedAt = null; task.completedDate = null; save(); render();
+        if ($('detailsDialog').open) renderDetails();
+        showToast('Tarefa reaberta.'); break;
       case 'delete':
         if (!window.confirm(`Excluir “${task.title}”? Essa ação não pode ser desfeita.`)) return;
         if (timer?.taskId === taskId) timer = null;
@@ -476,7 +493,7 @@
       createdAt: new Date().toISOString(), completedAt: null
     };
     tasks.push(task); save(); render(); form.reset(); $('taskId').value = ''; $('estimate').value = 60; closeForm();
-    showToast(ready ? 'Tarefa liberada e registrada a partir de hoje.' : 'Tarefa guardada em “Aguardando liberação”.');
+    showToast(ready ? 'Tarefa liberada e registrada a partir de hoje.' : 'Tarefa adicionada à caixa de entrada.');
   }
   function onReleaseSubmit(event) {
     event.preventDefault();
@@ -790,6 +807,7 @@
   $('reviewList').addEventListener('click', handleListAction);
   $('waitingList').addEventListener('click', handleListAction);
   $('doneList').addEventListener('click', handleListAction);
+  $('detailsDialog').addEventListener('click', handleListAction);
   $('activeBoard').addEventListener('click', handleListAction);
   $('reviewBoard').addEventListener('click', handleListAction);
   $('waitingBoard').addEventListener('click', handleListAction);
