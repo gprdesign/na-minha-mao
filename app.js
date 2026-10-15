@@ -1011,6 +1011,18 @@
     if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) dialog.close();
   });
   $('closeDetailsBtn').addEventListener('click', () => $('detailsDialog').close());
+  $('callZapiaBtn').addEventListener('click', () => {
+    const task = tasks.find(item => String(item.id) === String(detailTaskId));
+    if (!task) return;
+    const message = [
+      '@zapia me ajuda com esta tarefa do Ta Na Mão:',
+      task.title,
+      task.details?.trim() ? `Detalhes: ${task.details.trim().slice(0,1000)}` : '',
+      task.dueDate ? `Prazo: ${formatDate(task.dueDate)}` : ''
+    ].filter(Boolean).join('\n\n');
+    const url = `https://wa.me/?text=${encodeURIComponent(message)}`;
+    window.open(url, '_blank', 'noopener,noreferrer');
+  });
   $('detailsDialog').addEventListener('close', () => { detailTaskId = null; });
   $('subtaskForm').addEventListener('submit', onSubtaskSubmit);
   $('subtasksList').addEventListener('change', handleSubtaskChange);
