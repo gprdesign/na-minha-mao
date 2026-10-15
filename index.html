@@ -172,6 +172,7 @@
     .detail-meta-item.due .detail-meta-value { color:var(--red); font-weight:750; }
     .task-actions.detail-actions { margin:0 0 16px; }
     .call-zapia-btn { display:block; width:100%; min-height:48px; margin-top:16px; }
+    .btn.primary.call-zapia-btn { background:#02a181; border-color:#02a181; color:#101729; }
     .detail-long { white-space:pre-wrap; overflow-wrap:anywhere; color:#d1daea; margin:0 0 16px; }
     .task-actions { display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
     .task-actions .btn:not(.primary):not(.good):not(.warn):not(.open) { background:transparent; border-color:transparent; color:var(--muted); }
@@ -395,6 +396,6 @@
   <div id="toast" class="toast hidden" role="status"></div>
   <script src="./config.js?v=1" defer></script>
   <script src="./app.js?v=15" defer></script>
-  <script>if('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('./sw.js?v=16',{updateViaCache:'none'}).then(registration=>registration.update()).catch(()=>{});</script>
+  <script>if('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('./sw.js?v=17',{updateViaCache:'none'}).then(registration=>registration.update()).catch(()=>{});</script>
 </body>
 </html>
