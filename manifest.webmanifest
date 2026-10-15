@@ -1,7 +1,7 @@
 {
-  "name": "Na Minha Mão — Organizador de tarefas",
-  "short_name": "Na Minha Mão",
-  "description": "Tarefas organizadas pela data de liberação, prazo, tempo estimado e recompensa.",
+  "name": "TA NA MÃO — Organizador de tarefas",
+  "short_name": "TNM",
+  "description": "TA NA MÃO (TNM): tarefas organizadas pela data de liberação, prazo, tempo estimado e recompensa.",
   "lang": "pt-BR",
   "start_url": "./",
   "scope": "./",
