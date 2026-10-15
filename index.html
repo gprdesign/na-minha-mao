@@ -138,7 +138,7 @@
     .subtask-row { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:9px 11px; border:1px solid var(--line); border-radius:10px; background:#101729; }
     .subtask-main { display:flex; align-items:flex-start; gap:9px; min-width:0; flex:1; cursor:pointer; }
     .subtask-main input { margin:3px 0 0; accent-color:var(--green); flex:none; }
-    .subtask-text { overflow-wrap:anywhere; }
+    .subtask-text { min-width:0; flex:1; overflow-wrap:anywhere; white-space:normal; }
     .subtask-row.is-complete .subtask-text { color:var(--muted); text-decoration:line-through; }
     .subtask-delete { flex:none; }
     .subtask-form { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:end; gap:8px; margin-top:10px; }
@@ -382,6 +382,6 @@
   <div id="toast" class="toast hidden" role="status"></div>
   <script src="./config.js?v=1" defer></script>
   <script src="./app.js?v=11" defer></script>
-  <script>if('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('./sw.js?v=10',{updateViaCache:'none'}).then(registration=>registration.update()).catch(()=>{});</script>
+  <script>if('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('./sw.js?v=11',{updateViaCache:'none'}).then(registration=>registration.update()).catch(()=>{});</script>
 </body>
 </html>
