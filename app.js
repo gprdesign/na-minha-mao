@@ -2,6 +2,8 @@
   'use strict';
   const STORAGE_KEY = 'naMinhaMao.tasks.v1';
   const TIMER_KEY = 'naMinhaMao.timer.v1';
+  const TASK_ORDER_KEY = 'naMinhaMao.taskOrder.v1';
+  const ZOOM_KEY = 'naMinhaMao.zoom.v1';
   const SESSION_KEY = 'naMinhaMao.supabase.session.v1';
   const SYNC_KEY = 'naMinhaMao.supabase.sync.v1';
   const HISTORY_PREFIX = '[HISTÓRICO] ';
@@ -10,6 +12,11 @@
   const $ = (id) => document.getElementById(id);
   let tasks = load(STORAGE_KEY, []);
   let timer = load(TIMER_KEY, null);
+  let taskOrder = load(TASK_ORDER_KEY, {});
+  if (!taskOrder || typeof taskOrder !== 'object' || Array.isArray(taskOrder)) taskOrder = {};
+  let currentZoom = 1;
+  let draggedTaskId = null;
+  let draggedOrderList = null;
   let session = consumeAuthCallback() || load(SESSION_KEY, null);
   let syncEnabled = localStorage.getItem(SYNC_KEY) === 'true';
   let releaseTarget = null;
@@ -183,39 +190,122 @@
     $('formPanel').scrollIntoView({ behavior:'smooth', block:'start' });
   }
   function closeForm() { $('formPanel').classList.add('hidden'); }
-  function renderTask(task, completed = false) {
+  const ORDER_LIST_IDS = { active:'activeList', review:'reviewList', waiting:'waitingList', done:'doneList' };
+  function applyManualOrder(items, listKey) {
+    const saved = Array.isArray(taskOrder[listKey]) ? taskOrder[listKey].map(String) : [];
+    if (!saved.length) return items;
+    const byId = new Map(items.map(item => [String(item.id), item]));
+    const ordered = [];
+    saved.forEach(taskId => {
+      const item = byId.get(taskId);
+      if (item) { ordered.push(item); byId.delete(taskId); }
+    });
+    items.forEach(item => {
+      const taskId = String(item.id);
+      if (byId.has(taskId)) { ordered.push(item); byId.delete(taskId); }
+    });
+    return ordered;
+  }
+  function saveManualOrder(listKey, ids) {
+    taskOrder = { ...taskOrder, [listKey]:ids.map(String) };
+    localStorage.setItem(TASK_ORDER_KEY, JSON.stringify(taskOrder));
+  }
+  function orderListForId(listId) {
+    return Object.keys(ORDER_LIST_IDS).find(key => ORDER_LIST_IDS[key] === listId) || null;
+  }
+  function moveTaskInList(taskId, listKey, direction) {
+    const list = $(ORDER_LIST_IDS[listKey]);
+    if (!list) return;
+    const ids = Array.from(list.querySelectorAll('.task[data-task]'), card => card.dataset.task);
+    const from = ids.indexOf(String(taskId));
+    const to = from + direction;
+    if (from < 0 || to < 0 || to >= ids.length) return;
+    [ids[from],ids[to]] = [ids[to],ids[from]];
+    saveManualOrder(listKey, ids);
+    render();
+    showToast('Ordem salva neste navegador.');
+  }
+  function applyPageZoom(value) {
+    currentZoom = Math.min(1.5, Math.max(.8, Math.round(Number(value) * 10) / 10));
+    document.documentElement.style.zoom = String(currentZoom);
+    $('zoomValue').textContent = `${Math.round(currentZoom * 100)}%`;
+    $('zoomOutBtn').disabled = currentZoom <= .8;
+    $('zoomInBtn').disabled = currentZoom >= 1.5;
+    localStorage.setItem(ZOOM_KEY, JSON.stringify(currentZoom));
+  }
+  function handleTaskDragStart(event) {
+    if (!event.target.closest('[data-drag-handle]')) { event.preventDefault(); return; }
+    const card = event.target.closest('.task[data-task]');
+    const listKey = orderListForId(event.currentTarget.id);
+    if (!card || !listKey) { event.preventDefault(); return; }
+    draggedTaskId = card.dataset.task;
+    draggedOrderList = listKey;
+    if (event.dataTransfer) { event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain', draggedTaskId); }
+    card.classList.add('is-dragging');
+  }
+  function handleTaskDragOver(event) {
+    if (!draggedTaskId || orderListForId(event.currentTarget.id) !== draggedOrderList) return;
+    const list = event.currentTarget;
+    const card = Array.from(list.querySelectorAll('.task[data-task]')).find(item => item.dataset.task === draggedTaskId);
+    const target = event.target.closest('.task[data-task]');
+    if (!card || !target || target === card) return;
+    event.preventDefault();
+    list.querySelectorAll('.task.drop-before,.task.drop-after').forEach(item => item.classList.remove('drop-before','drop-after'));
+    const after = event.clientY > target.getBoundingClientRect().top + target.getBoundingClientRect().height / 2;
+    target.classList.add(after ? 'drop-after' : 'drop-before');
+    list.insertBefore(card, after ? target.nextSibling : target);
+  }
+  function handleTaskDrop(event) {
+    const list = event.currentTarget;
+    const listKey = orderListForId(list.id);
+    if (!draggedTaskId || listKey !== draggedOrderList) return;
+    event.preventDefault();
+    const ids = Array.from(list.querySelectorAll('.task[data-task]'), card => card.dataset.task);
+    saveManualOrder(listKey, ids);
+    draggedTaskId = null; draggedOrderList = null;
+    render();
+    showToast('Ordem salva neste navegador.');
+  }
+  function handleTaskDragEnd() {
+    if (!draggedTaskId) return;
+    draggedTaskId = null; draggedOrderList = null;
+    render();
+  }
+  function renderTask(task, completed = false, listKey = 'active', position = 0, itemCount = 1) {
     const age = daysSince(task.releaseDate);
-    const releaseText = task.releaseDate
-      ? `${age === 0 ? 'Liberada hoje' : `Liberada há ${age} ${age === 1 ? 'dia' : 'dias'}`} · ${formatDate(task.releaseDate)}`
+    const releaseLabel = task.releaseDate
+      ? (age === 0 ? 'Liberada hoje' : `Liberada há ${age} ${age === 1 ? 'dia' : 'dias'}`)
       : (task.status === 'waiting' ? 'Ainda não liberada' : 'Data de liberação não registrada');
-    const dueText = task.dueDate ? `Entrega: ${formatDate(task.dueDate)}` : 'Sem data de entrega';
-    const dueClass = task.dueDate ? 'task-due' : 'task-due empty';
+    const releaseDate = task.releaseDate ? `<span class="task-release-date">· ${escapeHTML(formatDate(task.releaseDate))}</span>` : '';
     const taskId = escapeHTML(task.id);
     const completeButton = completed ? '' : `<button class="btn small good" data-action="complete" data-id="${taskId}" type="button">CONCLUIR</button>`;
-    const menu = `<details class="task-menu"><summary aria-label="Mais opções" title="Mais opções">⋮</summary><div class="task-menu-popover"><button type="button" data-action="delete" data-id="${taskId}">EXCLUIR</button></div></details>`;
+    const moveUp = `<button type="button" data-action="move-up" data-id="${taskId}" data-order-list="${listKey}"${position === 0 ? ' disabled' : ''}>↑ Mover para cima</button>`;
+    const moveDown = `<button type="button" data-action="move-down" data-id="${taskId}" data-order-list="${listKey}"${position >= itemCount - 1 ? ' disabled' : ''}>↓ Mover para baixo</button>`;
+    const menu = `<details class="task-menu"><summary aria-label="Mais opções" title="Mais opções">⋮</summary><div class="task-menu-popover">${moveUp}${moveDown}<button type="button" data-action="delete" data-id="${taskId}">EXCLUIR</button></div></details>`;
+    const dragHandle = `<button class="task-drag-handle" type="button" draggable="true" data-drag-handle aria-label="Arrastar para reordenar" title="Arraste para reordenar">⠿</button>`;
     const actions = completeButton ? `<div class="task-actions">${completeButton}</div>` : '';
     return `<article class="task task-clickable" data-task="${taskId}" data-open-task="${taskId}" tabindex="0" aria-label="Abrir tarefa: ${escapeHTML(task.title)}" aria-keyshortcuts="Enter Space">
-      <div class="task-top"><div class="task-main"><div class="task-title">${escapeHTML(task.title)}</div><div class="task-summary"><span class="task-release">${escapeHTML(releaseText)}</span><span class="${dueClass}">${escapeHTML(dueText)}</span></div></div>${menu}</div>
+      <div class="task-top">${dragHandle}<div class="task-main"><div class="task-title">${escapeHTML(task.title)}</div><div class="task-summary"><span class="task-release"><strong class="task-release-label${task.releaseDate ? '' : ' is-pending'}">${escapeHTML(releaseLabel)}</strong>${releaseDate}</span></div></div>${menu}</div>
       ${actions}
     </article>`;
   }
   function render() {
-    const active = tasks.filter(t => t.status === 'active' && !t.completedAt).sort((a,b) => {
+    const active = applyManualOrder(tasks.filter(t => t.status === 'active' && !t.completedAt).sort((a,b) => {
       const ageDiff = daysSince(b.releaseDate)-daysSince(a.releaseDate);
       if (ageDiff) return ageDiff;
       if (a.dueDate && b.dueDate) return a.dueDate.localeCompare(b.dueDate);
       if (a.dueDate) return -1;
       if (b.dueDate) return 1;
       return a.createdAt.localeCompare(b.createdAt);
-    });
-    const review = tasks.filter(t => t.status === 'client_review' && !t.completedAt).sort((a,b) => {
+    }), 'active');
+    const review = applyManualOrder(tasks.filter(t => t.status === 'client_review' && !t.completedAt).sort((a,b) => {
       if (a.dueDate && b.dueDate) return a.dueDate.localeCompare(b.dueDate);
       if (a.dueDate) return -1;
       if (b.dueDate) return 1;
       return String(a.createdAt || '').localeCompare(String(b.createdAt || ''));
-    });
-    const waiting = tasks.filter(t => t.status === 'waiting' && !t.completedAt).sort((a,b) => a.createdAt.localeCompare(b.createdAt));
-    const done = tasks.filter(t => Boolean(t.completedAt)).sort((a,b) => b.completedAt.localeCompare(a.completedAt));
+    }), 'review');
+    const waiting = applyManualOrder(tasks.filter(t => t.status === 'waiting' && !t.completedAt).sort((a,b) => a.createdAt.localeCompare(b.createdAt)), 'waiting');
+    const done = applyManualOrder(tasks.filter(t => Boolean(t.completedAt)).sort((a,b) => b.completedAt.localeCompare(a.completedAt)), 'done');
     const total = tasks.length;
     const nextTask = active[0] || null;
     if (nextTask) {
@@ -249,10 +339,10 @@
     });
     $('doneCount').textContent = done.length;
     $('estimateTotal').textContent = formatMinutes(active.reduce((sum,t) => sum + (Number(t.estimateMinutes)||0), 0));
-    $('activeList').innerHTML = active.length ? active.map(t => renderTask(t)).join('') : '<div class="empty">Nenhuma tarefa liberada por enquanto.</div>';
-    $('reviewList').innerHTML = review.length ? review.map(t => renderTask(t)).join('') : '<div class="empty">Nenhuma tarefa aguardando aprovação do cliente.</div>';
-    $('waitingList').innerHTML = waiting.length ? waiting.map(t => renderTask(t)).join('') : '<div class="empty">Caixa de entrada vazia por enquanto.</div>';
-    $('doneList').innerHTML = done.length ? done.map(t => renderTask(t,true)).join('') : '<div class="empty">As tarefas concluídas aparecem aqui.</div>';
+    $('activeList').innerHTML = active.length ? active.map((t,index) => renderTask(t,false,'active',index,active.length)).join('') : '<div class="empty">Nenhuma tarefa liberada por enquanto.</div>';
+    $('reviewList').innerHTML = review.length ? review.map((t,index) => renderTask(t,false,'review',index,review.length)).join('') : '<div class="empty">Nenhuma tarefa aguardando aprovação do cliente.</div>';
+    $('waitingList').innerHTML = waiting.length ? waiting.map((t,index) => renderTask(t,false,'waiting',index,waiting.length)).join('') : '<div class="empty">Caixa de entrada vazia por enquanto.</div>';
+    $('doneList').innerHTML = done.length ? done.map((t,index) => renderTask(t,true,'done',index,done.length)).join('') : '<div class="empty">As tarefas concluídas aparecem aqui.</div>';
     renderHistory();
     applyPageMode();
     updateTimerDisplays();
@@ -612,6 +702,10 @@
         task.completedAt = null; task.completedDate = null; recordHistory(task, 'Tarefa reaberta'); save(); render();
         if ($('detailsDialog').open) renderDetails();
         showToast('Tarefa reaberta.'); break;
+      case 'move-up':
+        moveTaskInList(taskId, button.dataset.orderList, -1); break;
+      case 'move-down':
+        moveTaskInList(taskId, button.dataset.orderList, 1); break;
       case 'delete':
         if (!window.confirm(`Excluir “${task.title}”? Essa ação não pode ser desfeita.`)) return;
         if (timer?.taskId === taskId) timer = null;
@@ -679,7 +773,7 @@
     showToast('Liberada hoje. A contagem de dias começa agora.');
   }
   function exportBackup() {
-    const blob = new Blob([JSON.stringify({ exportedAt:new Date().toISOString(), tasks }, null, 2)], { type:'application/json' });
+    const blob = new Blob([JSON.stringify({ exportedAt:new Date().toISOString(), tasks, taskOrder }, null, 2)], { type:'application/json' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url; link.download = `na-minha-mao-backup-${todayKey()}.json`; link.click();
@@ -1012,7 +1106,11 @@
     $(id).addEventListener('click', handleTaskCardClick);
     $(id).addEventListener('keydown', handleTaskCardKeydown);
     $(id).addEventListener('click', handleListAction);
+    $(id).addEventListener('dragstart', handleTaskDragStart);
+    $(id).addEventListener('dragover', handleTaskDragOver);
+    $(id).addEventListener('drop', handleTaskDrop);
   });
+  document.addEventListener('dragend', handleTaskDragEnd);
   $('detailsDialog').addEventListener('click', handleListAction);
   $('detailsDialog').addEventListener('click', event => {
     const dialog = event.currentTarget;
@@ -1046,6 +1144,10 @@
   $('syncNowBtn').addEventListener('click', syncNow);
   window.addEventListener('online', scheduleCloudSync);
   window.addEventListener('beforeunload', () => save(false));
+  $('zoomOutBtn').addEventListener('click', () => applyPageZoom(currentZoom - .1));
+  $('zoomInBtn').addEventListener('click', () => applyPageZoom(currentZoom + .1));
+  const initialZoom = Number(load(ZOOM_KEY, 1));
+  applyPageZoom(Number.isFinite(initialZoom) ? initialZoom : 1);
   setInterval(updateTimerDisplays, 1000);
   setFormMode();
   render();
