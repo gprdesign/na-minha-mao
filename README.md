@@ -5,6 +5,7 @@ PWA responsivo para organizar tarefas pela data em que foram liberadas, com praz
 ## Recursos
 
 - Cadastro de tarefas liberadas ou aguardando liberação.
+- Subtarefas com conclusão individual, progresso e sincronização.
 - Contagem de dias desde a liberação, prazo, estimativa, tempo registrado e recompensa.
 - Navegação fixa no rodapé; Home destaca a próxima tarefa e resume os estados com barras de progresso, e Tarefas oferece uma lista enxuta por estado.
 - Detalhes, timeline de pedidos/comentários com data, hora e origem, além de links anexados.

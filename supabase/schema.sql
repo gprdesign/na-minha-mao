@@ -6,6 +6,7 @@ create table if not exists public.nmm_tasks (
   owner_id uuid not null references auth.users(id) on delete cascade,
   title text not null,
   details text not null default '',
+  subtasks jsonb not null default '[]'::jsonb,
   status text not null check (status in ('active', 'waiting', 'client_review')),
   release_date date,
   due_date date,

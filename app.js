@@ -298,6 +298,7 @@
     if (!task) return;
     $('detailTitle').textContent = task.title;
     $('detailDescription').textContent = task.details || 'Nenhum detalhe adicional cadastrado.';
+    renderSubtasks(task);
     const age = daysSince(task.releaseDate);
     const statusLabel = task.completedAt ? 'Concluída' : ({ active:'A bola tá contigo!!', client_review:'Passe perfeito pro cliente! Vamos esperar...', waiting:'Caixa de entrada — ideias, briefing e orçamento' }[task.status] || 'Status não informado');
     const releaseLabel = task.releaseDate
@@ -333,6 +334,53 @@
       const target = url ? `<a href="${escapeHTML(url.href)}" target="_blank" rel="noopener noreferrer">${label}</a><div class="hint">${escapeHTML(url.href)}</div>` : `<span>${label} — link inválido</span>`;
       return `<div class="link-item"><div>${target}</div><button class="btn small ghost" type="button" data-link-action="remove" data-id="${escapeHTML(link.id)}">Remover</button></div>`;
     }).join('') : '<div class="empty">Nenhum link anexado.</div>';
+  }
+  function renderSubtasks(task) {
+    const subtasks = (Array.isArray(task.subtasks) ? task.subtasks : [])
+      .filter(item => item && !item.deletedAt)
+      .sort((a,b) => String(a.createdAt || '').localeCompare(String(b.createdAt || '')));
+    const completed = subtasks.filter(item => Boolean(item.completedAt)).length;
+    $('subtaskProgress').textContent = `${completed}/${subtasks.length}`;
+    $('subtasksList').innerHTML = subtasks.length ? subtasks.map(item => {
+      const checked = item.completedAt ? 'checked' : '';
+      const rowClass = item.completedAt ? ' is-complete' : '';
+      const label = escapeHTML(item.text || 'Subtarefa');
+      const itemId = escapeHTML(item.id);
+      return `<div class="subtask-row${rowClass}"><label class="subtask-main"><input type="checkbox" data-subtask-id="${itemId}" aria-label="Concluir subtarefa: ${label}" ${checked}><span class="subtask-text">${label}</span></label><button class="btn small ghost subtask-delete" type="button" data-subtask-delete="${itemId}" aria-label="Remover subtarefa: ${label}">Remover</button></div>`;
+    }).join('') : '<div class="empty">Nenhuma subtarefa por enquanto.</div>';
+  }
+  function onSubtaskSubmit(event) {
+    event.preventDefault();
+    const task = tasks.find(item => String(item.id) === String(detailTaskId));
+    const text = $('subtaskText').value.trim();
+    if (!task || !text) return;
+    const now = new Date().toISOString();
+    task.subtasks ||= [];
+    task.subtasks.push({ id:id(), text, completedAt:null, deletedAt:null, createdAt:now, updatedAt:now });
+    save(); render(); renderDetails(); event.currentTarget.reset(); $('subtaskText').focus();
+    showToast('Subtarefa adicionada.');
+  }
+  function handleSubtaskChange(event) {
+    const checkbox = event.target.closest('input[data-subtask-id]');
+    if (!checkbox) return;
+    const task = tasks.find(item => String(item.id) === String(detailTaskId));
+    const item = task?.subtasks?.find(subtask => String(subtask.id) === checkbox.dataset.subtaskId && !subtask.deletedAt);
+    if (!item) return;
+    item.completedAt = checkbox.checked ? new Date().toISOString() : null;
+    item.updatedAt = new Date().toISOString();
+    save(); render(); renderDetails();
+    showToast(checkbox.checked ? 'Subtarefa concluída.' : 'Subtarefa reaberta.');
+  }
+  function handleSubtaskDelete(event) {
+    const button = event.target.closest('button[data-subtask-delete]');
+    if (!button) return;
+    const task = tasks.find(item => String(item.id) === String(detailTaskId));
+    const item = task?.subtasks?.find(subtask => String(subtask.id) === button.dataset.subtaskDelete && !subtask.deletedAt);
+    if (!item || !window.confirm(`Remover a subtarefa “${item.text}”?`)) return;
+    const now = new Date().toISOString();
+    item.deletedAt = now;
+    item.updatedAt = now;
+    save(); render(); renderDetails(); showToast('Subtarefa removida.');
   }
   function onCommentSubmit(event) {
     event.preventDefault();
@@ -414,7 +462,11 @@
       case 'details': openDetails(taskId); break;
       case 'timer': toggleTimer(taskId); break;
       case 'complete': {
-        if (!window.confirm(`Concluir “${task.title}”?`)) return;
+        const pendingSubtasks = (Array.isArray(task.subtasks) ? task.subtasks : []).filter(item => item && !item.deletedAt && !item.completedAt).length;
+        const confirmMessage = pendingSubtasks
+          ? `Concluir “${task.title}” mesmo com ${pendingSubtasks} ${pendingSubtasks === 1 ? 'subtarefa pendente' : 'subtarefas pendentes'}?`
+          : `Concluir “${task.title}”?`;
+        if (!window.confirm(confirmMessage)) return;
         if (timer?.taskId === taskId && timer.startedAt) pauseTimer();
         task.completedAt = new Date().toISOString();
         task.completedDate = todayKey();
@@ -467,7 +519,7 @@
       releaseDate: ready ? todayKey() : null, dueDate: ready ? (String(data.get('dueDate')||'') || null) : null,
       estimateMinutes: estimate, reward: ready ? String(data.get('reward')||'').trim() : '',
       blocker: ready ? '' : String(data.get('blocker')||'').trim(), timeSpentSeconds: 0,
-      createdAt: new Date().toISOString(), completedAt: null
+      createdAt: new Date().toISOString(), completedAt: null, subtasks: []
     };
     tasks.push(task); save(); render(); form.reset(); $('taskId').value = ''; $('estimate').value = 60; closeForm();
     showToast(ready ? 'Tarefa liberada e registrada a partir de hoje.' : 'Tarefa adicionada à caixa de entrada.');
@@ -556,7 +608,7 @@
       release_date:task.releaseDate || null, due_date:task.dueDate || null, estimate_minutes:Number(task.estimateMinutes) || 60,
       reward:task.reward || '', blocker:task.blocker || '', time_spent_seconds:Number(task.timeSpentSeconds) || 0,
       created_at:task.createdAt || new Date().toISOString(), completed_at:task.completedAt || null,
-      completed_date:task.completedDate || null
+      completed_date:task.completedDate || null, subtasks:Array.isArray(task.subtasks) ? task.subtasks : []
     };
   }
   function rowToTask(row) {
@@ -565,8 +617,22 @@
       releaseDate:row.release_date || null, dueDate:row.due_date || null, estimateMinutes:Number(row.estimate_minutes) || 60,
       reward:row.reward || '', blocker:row.blocker || '', timeSpentSeconds:Number(row.time_spent_seconds) || 0,
       createdAt:row.created_at || new Date().toISOString(), completedAt:row.completed_at || null,
-      completedDate:row.completed_date || null, comments:[], links:[]
+      completedDate:row.completed_date || null, comments:[], links:[], subtasks:Array.isArray(row.subtasks) ? row.subtasks : []
     };
+  }
+  function subtaskRevision(item) {
+    const value = Date.parse(item?.updatedAt || item?.createdAt || '');
+    return Number.isFinite(value) ? value : 0;
+  }
+  function mergeSubtasks(remoteItems, localItems) {
+    const merged = new Map();
+    for (const item of [...(Array.isArray(remoteItems) ? remoteItems : []), ...(Array.isArray(localItems) ? localItems : [])]) {
+      if (!item || item.id == null) continue;
+      const key = String(item.id);
+      const previous = merged.get(key);
+      if (!previous || subtaskRevision(item) >= subtaskRevision(previous)) merged.set(key, { ...item, id:key });
+    }
+    return Array.from(merged.values()).sort((a,b) => String(a.createdAt || '').localeCompare(String(b.createdAt || '')));
   }
   function clearAuth(keepLocal = true) {
     session = null;
@@ -602,7 +668,17 @@
     const remoteLinkSet = new Set(remoteLinkIds);
     const missingLocalComments = localTasks.reduce((sum, task) => sum + (task.comments || []).filter(item => !remoteCommentSet.has(String(item.id))).length, 0);
     const missingLocalLinks = localTasks.reduce((sum, task) => sum + (task.links || []).filter(item => !remoteLinkSet.has(String(item.id))).length, 0);
-    const pendingLocalData = localOnlyTasks.length + missingLocalComments + missingLocalLinks;
+    const missingLocalSubtasks = localTasks.reduce((sum, task) => {
+      const remote = remoteById.get(String(task.id));
+      if (!remote) return sum;
+      const remoteSubtasks = new Map((remote.subtasks || []).filter(item => item?.id != null).map(item => [String(item.id), item]));
+      return sum + (Array.isArray(task.subtasks) ? task.subtasks : []).filter(item => {
+        if (!item || item.id == null) return false;
+        const existing = remoteSubtasks.get(String(item.id));
+        return !existing || subtaskRevision(item) > subtaskRevision(existing);
+      }).length;
+    }, 0);
+    const pendingLocalData = localOnlyTasks.length + missingLocalComments + missingLocalLinks + missingLocalSubtasks;
     if (pendingLocalData && !window.confirm(`Enviar ${pendingLocalData} item(ns) local(is) para a conta privada do Supabase? Nada será apagado do navegador.`)) {
       clearAuth(true);
       setAuthMessage('Nada foi enviado. Você continua no modo local.');
@@ -618,6 +694,7 @@
       for (const item of local.comments || []) if (!commentIds.has(String(item.id))) remote.comments.push(item);
       const linkIds = new Set((remote.links || []).map(item => String(item.id)));
       for (const item of local.links || []) if (!linkIds.has(String(item.id))) remote.links.push(item);
+      remote.subtasks = mergeSubtasks(remote.subtasks, local.subtasks);
     }
     tasks = Array.from(remoteById.values());
     syncEnabled = true;
@@ -787,6 +864,9 @@
   $('detailsDialog').addEventListener('click', handleListAction);
   $('closeDetailsBtn').addEventListener('click', () => $('detailsDialog').close());
   $('detailsDialog').addEventListener('close', () => { detailTaskId = null; });
+  $('subtaskForm').addEventListener('submit', onSubtaskSubmit);
+  $('subtasksList').addEventListener('change', handleSubtaskChange);
+  $('subtasksList').addEventListener('click', handleSubtaskDelete);
   $('commentForm').addEventListener('submit', onCommentSubmit);
   $('linkForm').addEventListener('submit', onLinkSubmit);
   $('linksList').addEventListener('click', handleLinkAction);
