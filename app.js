@@ -200,7 +200,7 @@
       : task.status === 'client_review'
         ? `<span class="pill review">Com o cliente · aguardando aprovação</span><span class="pill ${dueStatus(task) ? 'late' : ''}">${due}</span>`
         : `<span class="pill wait">Aguardando liberação</span>`;
-    return `<article class="task" data-task="${escapeHTML(task.id)}">
+    return `<article class="task" data-task="${escapeHTML(task.id)}" tabindex="-1">
       <div class="task-top"><div><div class="task-title">${escapeHTML(task.title)}</div><div class="task-meta">${activeMeta}</div></div>${task.status === 'active' && !completed ? `<span class="pill timer-readout" data-id="${escapeHTML(task.id)}">${escapeHTML(remainingLabel(task))}</span>` : ''}</div>
       ${blocker}
       ${description}
@@ -228,6 +228,16 @@
     const waiting = tasks.filter(t => t.status === 'waiting' && !t.completedAt).sort((a,b) => a.createdAt.localeCompare(b.createdAt));
     const done = tasks.filter(t => Boolean(t.completedAt)).sort((a,b) => b.completedAt.localeCompare(a.completedAt));
     const total = tasks.length;
+    const nextTask = active[0] || null;
+    if (nextTask) {
+      const meta = [
+        nextTask.dueDate ? `Entrega: ${formatDate(nextTask.dueDate)}` : '',
+        nextTask.estimateMinutes ? `Estimativa: ${formatMinutes(nextTask.estimateMinutes)}` : ''
+      ].filter(Boolean).join(' · ');
+      $('nextTaskContent').innerHTML = `<button class="next-task-card" type="button" data-open-task="${escapeHTML(nextTask.id)}" aria-label="Abrir tarefa: ${escapeHTML(nextTask.title)}"><span class="next-task-copy"><span class="next-task-kicker">PRÓXIMA TAREFA</span><strong class="next-task-title">${escapeHTML(nextTask.title)}</strong><span class="next-task-meta">${escapeHTML(meta)}</span></span><span class="next-task-cta">Abrir tarefa <span aria-hidden="true">↗</span></span></button>`;
+    } else {
+      $('nextTaskContent').innerHTML = '<div class="next-task-empty"><span class="next-task-kicker">PRÓXIMA TAREFA</span><p>Nenhuma tarefa liberada para começar.</p></div>';
+    }
     $('activeCount').textContent = active.length;
     $('reviewCount').textContent = review.length;
     $('reviewListCount').textContent = review.length;
@@ -292,6 +302,20 @@
     localStorage.setItem('naMinhaMao.page', currentPage);
     applyPageMode();
     if (currentPage === 'tasks') applyViewMode();
+  }
+  function openTaskInList(taskId) {
+    const task = tasks.find(item => String(item.id) === String(taskId) && !item.completedAt);
+    if (!task) { showToast('Essa tarefa não está mais disponível para abrir.'); return; }
+    setPage('tasks');
+    setView('list');
+    requestAnimationFrame(() => {
+      const target = Array.from(document.querySelectorAll('#listView .task[data-task]')).find(node => node.dataset.task === String(taskId));
+      if (!target) return;
+      target.focus({ preventScroll:true });
+      target.scrollIntoView({ behavior:'smooth', block:'center' });
+      target.classList.add('task-target-highlight');
+      window.setTimeout(() => target.classList.remove('task-target-highlight'), 2100);
+    });
   }
   function safeHttpUrl(raw) {
     try {
@@ -750,6 +774,10 @@
   document.querySelector('.main-nav').addEventListener('click', event => {
     const button = event.target.closest('button[data-page]');
     if (button) setPage(button.dataset.page);
+  });
+  $('nextTaskContent').addEventListener('click', event => {
+    const button = event.target.closest('button[data-open-task]');
+    if (button) openTaskInList(button.dataset.openTask);
   });
   $('newBtn').addEventListener('click', openNewForm);
   $('closeFormBtn').addEventListener('click', closeForm);

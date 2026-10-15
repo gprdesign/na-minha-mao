@@ -14,7 +14,7 @@
     body { margin:0; background:linear-gradient(145deg,#0b1020,#111a2c 60%,#0b1020); color:var(--text); font:16px/1.45 system-ui,-apple-system,Segoe UI,sans-serif; min-height:100vh; }
     button,input,textarea { font:inherit; }
     button { cursor:pointer; }
-    .wrap { max-width:1120px; margin:auto; padding:24px 18px 50px; }
+    .wrap { max-width:1120px; margin:auto; padding:24px 18px 120px; }
     header { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; margin-bottom:22px; }
     h1 { font-size:clamp(1.8rem,5vw,2.6rem); line-height:1.08; margin:0 0 8px; letter-spacing:-.04em; }
     h2 { font-size:1.2rem; margin:0; }
@@ -22,7 +22,7 @@
     .sub,.muted { color:var(--muted); }
     .brand { display:flex; align-items:center; gap:13px; }
     .brand-mark { display:grid; place-items:center; width:44px; height:44px; border:1px solid #34415b; border-radius:13px; color:var(--accent); font-size:.78rem; font-weight:800; letter-spacing:.04em; }
-    .main-nav { position:sticky; top:10px; z-index:5; display:flex; gap:5px; padding:6px; margin:0 0 26px; border:1px solid var(--line); border-radius:14px; background:#111827ee; backdrop-filter:blur(12px); }
+    .main-nav { position:fixed; z-index:20; left:50%; bottom:calc(12px + env(safe-area-inset-bottom,0px)); transform:translateX(-50%); width:min(760px,calc(100% - 28px)); display:flex; gap:5px; padding:6px; margin:0; border:1px solid #394663; border-radius:16px; background:#111827ee; backdrop-filter:blur(14px); box-shadow:0 12px 35px #0008; }
     .nav-btn { flex:1; display:flex; align-items:center; justify-content:center; gap:8px; padding:10px 12px; border:0; border-radius:10px; background:transparent; color:var(--muted); font-weight:650; }
     .nav-btn:hover { background:#202b42; color:var(--text); }
     .nav-btn[aria-current="page"] { background:#202b42; color:var(--text); }
@@ -31,6 +31,19 @@
     .page-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; margin:0 2px 18px; }
     .page-heading h2 { font-size:1.4rem; margin:0; }
     .eyebrow { color:var(--muted); font-size:.72rem; font-weight:750; letter-spacing:.11em; margin:0 0 4px; }
+    .next-task-panel { margin:0 0 24px; }
+    .next-task-card { width:100%; display:flex; align-items:center; justify-content:space-between; gap:18px; padding:18px 20px; border:1px solid rgba(139,175,255,.2); border-radius:16px; color:var(--text); text-align:left; background:linear-gradient(110deg,rgba(20,27,45,.98),rgba(22,31,52,.92)); box-shadow:0 0 0 1px rgba(139,175,255,.04),0 0 14px rgba(139,175,255,.025); animation:nextTaskGlow 5s ease-in-out infinite; }
+    .next-task-card:hover { background:linear-gradient(110deg,#19243a,#1c2943); }
+    .next-task-copy { display:grid; gap:5px; min-width:0; }
+    .next-task-kicker { color:#a8c1ff; font-size:.7rem; font-weight:750; letter-spacing:.13em; }
+    .next-task-title { font-size:1.08rem; overflow-wrap:anywhere; }
+    .next-task-meta { color:var(--muted); font-size:.82rem; }
+    .next-task-cta { display:flex; align-items:center; gap:7px; flex:none; color:var(--accent); font-size:.86rem; font-weight:700; }
+    .next-task-empty { display:grid; gap:6px; padding:17px 20px; border:1px solid var(--line); border-radius:16px; background:rgba(20,27,45,.72); }
+    .next-task-empty p { color:var(--muted); font-size:.9rem; }
+    @keyframes nextTaskGlow { 0%,100% {border-color:rgba(139,175,255,.16);box-shadow:0 0 0 1px rgba(139,175,255,.035),0 0 12px rgba(139,175,255,.02)} 50% {border-color:rgba(139,175,255,.4);box-shadow:0 0 0 1px rgba(139,175,255,.12),0 0 19px rgba(139,175,255,.075)} }
+    .task-target-highlight { animation:taskTargetGlow 2s ease-out; }
+    @keyframes taskTargetGlow { 0% {box-shadow:0 0 0 3px rgba(139,175,255,.42)} 100% {box-shadow:0 0 0 1px transparent} }
     .dashboard-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:13px; }
     .dashboard-card { display:flex; flex-direction:column; gap:12px; min-height:178px; padding:18px; border:1px solid var(--line); border-top:2px solid var(--tone); border-radius:16px; background:rgba(20,27,45,.9); }
     .dashboard-card.tone-active { --tone:var(--green); }
@@ -112,9 +125,10 @@
     dialog { border:1px solid var(--line); border-radius:16px; background:var(--panel); color:var(--text); width:min(600px,calc(100% - 24px)); max-height:90vh; overflow:auto; padding:20px; box-shadow:0 20px 80px #0008; }
     dialog::backdrop { background:#050914bb; }
     dialog h2 { margin-bottom:14px; }
-    .toast { position:fixed; bottom:18px; left:50%; transform:translateX(-50%); background:#1e4937; border:1px solid #39865f; border-radius:12px; padding:12px 16px; max-width:calc(100% - 24px); box-shadow:0 10px 30px #0005; z-index:10; }
+    .toast { position:fixed; bottom:92px; left:50%; transform:translateX(-50%); background:#1e4937; border:1px solid #39865f; border-radius:12px; padding:12px 16px; max-width:calc(100% - 24px); box-shadow:0 10px 30px #0005; z-index:10; }
     footer { color:var(--muted); font-size:.8rem; margin-top:28px; text-align:center; }
-    @media(max-width:650px) { .wrap{padding:18px 13px 38px;} header{display:block;} .brand-mark{width:40px;height:40px;} .main-nav{top:6px;margin-bottom:20px;} .nav-btn{flex-direction:column;gap:3px;padding:8px 4px;font-size:.76rem;} .nav-icon{width:18px;height:18px;} .page-heading{align-items:flex-start;} .dashboard-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;} .dashboard-card{min-height:150px;padding:14px;gap:10px;} .dashboard-count{font-size:2rem;} .stats{grid-template-columns:1fr 1fr;} .form-grid{grid-template-columns:1fr;} .field.full{grid-column:auto;} .task-top{display:block;} .task-actions .btn{flex:1 1 auto;} .board-columns{grid-template-columns:1fr;} .link-item{align-items:flex-start;} }
+    @media(max-width:650px) { .wrap{padding:18px 13px calc(112px + env(safe-area-inset-bottom,0px));} header{display:block;} .brand-mark{width:40px;height:40px;} .main-nav{bottom:calc(8px + env(safe-area-inset-bottom,0px));width:calc(100% - 24px);} .nav-btn{flex-direction:column;gap:3px;padding:8px 4px;font-size:.76rem;} .nav-icon{width:18px;height:18px;} .page-heading{align-items:flex-start;} .next-task-card{align-items:flex-start;padding:15px;gap:12px;} .next-task-cta{font-size:.78rem;align-self:center;} .next-task-title{font-size:1rem;} .dashboard-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;} .dashboard-card{min-height:150px;padding:14px;gap:10px;} .dashboard-count{font-size:2rem;} .stats{grid-template-columns:1fr 1fr;} .form-grid{grid-template-columns:1fr;} .field.full{grid-column:auto;} .task-top{display:block;} .task-actions .btn{flex:1 1 auto;} .board-columns{grid-template-columns:1fr;} .link-item{align-items:flex-start;} }
+    @media(prefers-reduced-motion:reduce) { .next-task-card,.task-target-highlight { animation:none; } }
   </style>
 </head>
 <body>
@@ -141,6 +155,9 @@
     </nav>
 
     <section id="homePage" class="page-view" aria-label="Painel inicial">
+      <section class="next-task-panel" aria-label="Próxima tarefa">
+        <div id="nextTaskContent"><div class="next-task-empty"><span class="next-task-kicker">PRÓXIMA TAREFA</span><p>Nenhuma tarefa liberada para começar.</p></div></div>
+      </section>
       <div class="page-heading">
         <div><p class="eyebrow">VISÃO GERAL</p><h2>Resumo das tarefas</h2></div>
         <span class="muted" id="homeTotalText">0 tarefas</span>
@@ -303,7 +320,7 @@
   </dialog>
   <div id="toast" class="toast hidden" role="status"></div>
   <script src="./config.js?v=1" defer></script>
-  <script src="./app.js?v=5" defer></script>
-  <script>if('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('./sw.js?v=4',{updateViaCache:'none'}).then(registration=>registration.update()).catch(()=>{});</script>
+  <script src="./app.js?v=6" defer></script>
+  <script>if('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('./sw.js?v=5',{updateViaCache:'none'}).then(registration=>registration.update()).catch(()=>{});</script>
 </body>
 </html>
