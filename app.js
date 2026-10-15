@@ -326,6 +326,16 @@
     applyPageMode();
     if (currentPage === 'tasks') applyViewMode();
   }
+  const landscapeTaskQuery = window.matchMedia('(orientation: landscape)');
+  function updateTaskColumns() {
+    const landscape = landscapeTaskQuery.matches;
+    document.querySelectorAll('#listView > .task-section').forEach((section,index) => {
+      section.open = landscape || index === 0;
+    });
+  }
+  if (landscapeTaskQuery.addEventListener) landscapeTaskQuery.addEventListener('change', updateTaskColumns);
+  else landscapeTaskQuery.addListener(updateTaskColumns);
+  updateTaskColumns();
   function openDashboardStatus(status) {
     const listId = { active:'activeList', review:'reviewList', waiting:'waitingList', done:'doneList' }[status];
     const list = listId ? $(listId) : null;
