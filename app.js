@@ -353,7 +353,9 @@
   function openDetails(taskId) {
     detailTaskId = taskId;
     renderDetails();
-    $('detailsDialog').showModal();
+    const dialog = $('detailsDialog');
+    if (!dialog.open) dialog.showModal();
+    dialog.scrollTo({ top:0, left:0 });
   }
   function openHistoryEntry(taskId, targetSection = 'comments', targetId = '') {
     const task = tasks.find(item => String(item.id) === String(taskId));
@@ -370,7 +372,12 @@
       }
       if (!target) target = $(targetSection === 'links' ? 'linksSection' : targetSection === 'subtasks' ? 'subtasksSection' : 'commentSection');
       if (!target) return;
-      target.scrollIntoView({ behavior:'smooth', block:'center' });
+      const dialog = $('detailsDialog');
+      const dialogRect = dialog.getBoundingClientRect();
+      const targetRect = target.getBoundingClientRect();
+      const targetTop = dialog.scrollTop + targetRect.top - dialogRect.top - dialog.clientTop;
+      const centeredTop = Math.max(0, targetTop - Math.max(0, (dialog.clientHeight - targetRect.height) / 2));
+      dialog.scrollTo({ top:centeredTop, left:0, behavior:'smooth' });
       target.classList.add('history-target-highlight');
       window.setTimeout(() => target.classList.remove('history-target-highlight'), 2200);
     });
