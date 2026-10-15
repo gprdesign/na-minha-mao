@@ -1,22 +1,25 @@
-# Na Minha Mão — protótipo
+# Na Minha Mão
 
-PWA responsivo para organizar tarefas pelo momento em que ficam liberadas.
+PWA responsivo para organizar tarefas pela data em que foram liberadas, com prazo, estimativa, foco e recompensa.
 
-## O que já funciona
+## Recursos
 
-- Cadastro pergunta se a tarefa está liberada.
-- Tarefas bloqueadas ficam em “Aguardando liberação”, com campo para registrar o que falta.
-- Ao liberar, registra a data de hoje e solicita prazo, estimativa e recompensa.
-- Lista prioriza tarefas com mais dias na mão; em empate, mostra primeiro a entrega mais próxima.
-- Visão Kanban com as colunas “Tá na sua mão, bora!” e “Aguardando liberação”.
-- Detalhes da tarefa, timeline de pedidos/comentários com data, hora e origem (manual, WhatsApp ou Radar).
-- Anexos de links HTTP/HTTPS com nome e acesso em nova aba.
-- Timer de foco, edição, conclusão, reabertura e exportação de backup JSON.
-- Interface responsiva e cache básico para uso offline depois do primeiro carregamento.
+- Cadastro de tarefas liberadas ou aguardando liberação.
+- Contagem de dias desde a liberação, prazo, estimativa, tempo registrado e recompensa.
+- Visualização em lista ou Kanban.
+- Detalhes, timeline de pedidos/comentários com data, hora e origem, além de links anexados.
+- Timer de foco, edição, conclusão, reabertura e backup JSON.
+- Layout responsivo e cache offline básico.
 
-## Dados e integração
+## Sincronização e privacidade
 
-A versão atual guarda os dados em `localStorage` do navegador. Não envia tarefas a servidor e não sincroniza entre dispositivos. Comentários marcados como WhatsApp ou Radar são registros manuais; a integração para o Zapia anexar automaticamente resumos de conversas/Radar ainda depende de um backend autenticado.
+- Sem login, os dados ficam apenas no `localStorage` deste navegador.
+- Ao entrar na conta Supabase, tarefas, comentários e links sincronizam entre dispositivos.
+- O primeiro envio de dados locais pede confirmação; nada é enviado sem essa confirmação.
+- As tabelas usam Row Level Security e cada conta só acessa as próprias linhas.
+- `config.js` contém somente a chave publicável, destinada ao navegador. Nunca coloque uma chave secreta do Supabase no código ou no repositório público.
+- `supabase/schema.sql` cria as tabelas e políticas do app no projeto Supabase.
+- O anexo automático de resumos pelo Zapia exige uma credencial privada de servidor; ela não deve ser publicada no app.
 
 ## Teste local
 

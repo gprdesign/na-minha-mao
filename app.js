@@ -2,21 +2,49 @@
   'use strict';
   const STORAGE_KEY = 'naMinhaMao.tasks.v1';
   const TIMER_KEY = 'naMinhaMao.timer.v1';
+  const SESSION_KEY = 'naMinhaMao.supabase.session.v1';
+  const SYNC_KEY = 'naMinhaMao.supabase.sync.v1';
+  const CLOUD = window.NMM_SUPABASE || {};
+  const CLOUD_READY = Boolean(CLOUD.url && CLOUD.publishableKey);
   const $ = (id) => document.getElementById(id);
   let tasks = load(STORAGE_KEY, []);
   let timer = load(TIMER_KEY, null);
+  let session = consumeAuthCallback() || load(SESSION_KEY, null);
+  let syncEnabled = localStorage.getItem(SYNC_KEY) === 'true';
   let releaseTarget = null;
   let detailTaskId = null;
   let currentView = localStorage.getItem('naMinhaMao.view') === 'kanban' ? 'kanban' : 'list';
   let toastTimeout;
+  let syncTimeout;
+  let syncInFlight = false;
+  let syncQueued = false;
+  let authBusy = false;
+  let authMessageText = '';
+  let syncStatusText = '';
+  const remoteTaskIds = new Set();
+  const remoteCommentIds = new Set();
+  const remoteLinkIds = new Set();
 
   function load(key, fallback) {
     try { const value = localStorage.getItem(key); return value ? JSON.parse(value) : fallback; }
     catch { return fallback; }
   }
-  function save() {
+  function clone(value) { return JSON.parse(JSON.stringify(value)); }
+  function consumeAuthCallback() {
+    const hash = location.hash.startsWith('#') ? new URLSearchParams(location.hash.slice(1)) : null;
+    const accessToken = hash?.get('access_token');
+    const refreshToken = hash?.get('refresh_token');
+    if (!accessToken || !refreshToken) return null;
+    const expiresIn = Number(hash.get('expires_in')) || 3600;
+    const found = { access_token:accessToken, refresh_token:refreshToken, expires_at:Date.now() + expiresIn * 1000 };
+    localStorage.setItem(SESSION_KEY, JSON.stringify(found));
+    history.replaceState(null, '', `${location.pathname}${location.search}`);
+    return found;
+  }
+  function save(schedule = true) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
     localStorage.setItem(TIMER_KEY, JSON.stringify(timer));
+    if (schedule) scheduleCloudSync();
   }
   function id() { return globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`; }
   function escapeHTML(value) {
@@ -72,6 +100,40 @@
     node.classList.remove('hidden');
     clearTimeout(toastTimeout);
     toastTimeout = setTimeout(() => node.classList.add('hidden'), 4200);
+  }
+  function setAuthMessage(message, isError = false) {
+    authMessageText = message;
+    const node = $('authMessage');
+    if (!node) return;
+    node.textContent = message;
+    node.classList.toggle('error-text', isError);
+  }
+  function updateAuthUI() {
+    if (!CLOUD_READY) {
+      $('authStatus').textContent = 'Sincronização indisponível';
+      $('authFields').classList.remove('hidden');
+      $('loginBtn').disabled = true;
+      $('signupBtn').disabled = true;
+      $('logoutBtn').classList.add('hidden');
+      setAuthMessage('A configuração segura do banco ainda não está disponível.');
+      return;
+    }
+    const connected = Boolean(session?.user?.id && syncEnabled);
+    $('authStatus').textContent = connected ? (syncStatusText || `Sincronizado como ${session.user.email || 'sua conta'}`) : 'Modo local';
+    $('authFields').classList.toggle('hidden', connected);
+    $('loginBtn').classList.toggle('hidden', connected);
+    $('signupBtn').classList.toggle('hidden', connected);
+    $('logoutBtn').classList.toggle('hidden', !connected);
+    $('syncNowBtn').classList.toggle('hidden', !connected);
+    $('loginBtn').disabled = authBusy;
+    $('signupBtn').disabled = authBusy;
+    $('syncNowBtn').disabled = authBusy;
+    if (!authMessageText && !authBusy) setAuthMessage(connected ? 'Seus dados sincronizam entre aparelhos e ficam privados na sua conta.' : 'Entre ou crie sua conta para sincronizar. Os dados atuais continuam salvos neste navegador.');
+  }
+  function setAuthBusy(busy, message = '') {
+    authBusy = busy;
+    if (message) setAuthMessage(message);
+    updateAuthUI();
   }
   function setFormMode() {
     const ready = document.querySelector('input[name="ready"]:checked')?.value === 'yes';
@@ -335,7 +397,7 @@
       return;
     }
     const task = {
-      id: id(), title, details: String(data.get('details')||'').trim(), comments: [], links: [], status: ready ? 'active' : 'waiting',
+      id:id(), title, details: String(data.get('details')||'').trim(), comments: [], links: [], status: ready ? 'active' : 'waiting',
       releaseDate: ready ? todayKey() : null, dueDate: ready ? (String(data.get('dueDate')||'') || null) : null,
       estimateMinutes: estimate, reward: ready ? String(data.get('reward')||'').trim() : '',
       blocker: ready ? '' : String(data.get('blocker')||'').trim(), timeSpentSeconds: 0,
@@ -364,6 +426,279 @@
     setTimeout(() => URL.revokeObjectURL(url), 1000); showToast('Backup baixado. Guarde o arquivo em local seguro.');
   }
 
+  function authHeaders(extra = {}) {
+    return { apikey:CLOUD.publishableKey, 'Content-Type':'application/json', ...extra };
+  }
+  async function responseBody(response) {
+    const text = await response.text();
+    let body = null;
+    try { body = text ? JSON.parse(text) : null; } catch { body = text; }
+    if (!response.ok) {
+      const message = body?.msg || body?.message || body?.error_description || body?.error || `Erro HTTP ${response.status}`;
+      throw new Error(String(message));
+    }
+    return body;
+  }
+  async function authRequest(path, payload, method = 'POST') {
+    const response = await fetch(`${CLOUD.url}/auth/v1/${path}`, {
+      method,
+      headers:authHeaders(),
+      body:payload ? JSON.stringify(payload) : undefined
+    });
+    return responseBody(response);
+  }
+  function storeSession(data) {
+    if (!data?.access_token || !data?.refresh_token) return false;
+    session = {
+      access_token:data.access_token,
+      refresh_token:data.refresh_token,
+      expires_at:Date.now() + (Number(data.expires_in) || 3600) * 1000,
+      user:data.user || session?.user || null
+    };
+    localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+    return true;
+  }
+  async function refreshSession() {
+    if (!session?.refresh_token) throw new Error('Sessão expirada. Entre novamente.');
+    const data = await authRequest('token?grant_type=refresh_token', { refresh_token:session.refresh_token });
+    if (!storeSession(data)) throw new Error('Não foi possível renovar a sessão. Entre novamente.');
+  }
+  async function ensureFreshSession() {
+    if (!session?.access_token) throw new Error('Entre na sua conta para sincronizar.');
+    if (!session.expires_at || Date.now() > session.expires_at - 60000) await refreshSession();
+  }
+  async function getCurrentUser() {
+    await ensureFreshSession();
+    const response = await fetch(`${CLOUD.url}/auth/v1/user`, {
+      headers:authHeaders({ Authorization:`Bearer ${session.access_token}` })
+    });
+    return responseBody(response);
+  }
+  async function cloudRequest(path, options = {}, canRetry = true) {
+    await ensureFreshSession();
+    const headers = authHeaders({ Authorization:`Bearer ${session.access_token}`, ...(options.headers || {}) });
+    const response = await fetch(`${CLOUD.url}/rest/v1/${path}`, { ...options, headers });
+    if (response.status === 401 && canRetry && session?.refresh_token) {
+      await refreshSession();
+      return cloudRequest(path, options, false);
+    }
+    return responseBody(response);
+  }
+  function taskToRow(task) {
+    return {
+      id:String(task.id), owner_id:session.user.id, title:task.title, details:task.details || '', status:task.status,
+      release_date:task.releaseDate || null, due_date:task.dueDate || null, estimate_minutes:Number(task.estimateMinutes) || 60,
+      reward:task.reward || '', blocker:task.blocker || '', time_spent_seconds:Number(task.timeSpentSeconds) || 0,
+      created_at:task.createdAt || new Date().toISOString(), completed_at:task.completedAt || null,
+      completed_date:task.completedDate || null
+    };
+  }
+  function rowToTask(row) {
+    return {
+      id:String(row.id), title:row.title, details:row.details || '', status:row.status,
+      releaseDate:row.release_date || null, dueDate:row.due_date || null, estimateMinutes:Number(row.estimate_minutes) || 60,
+      reward:row.reward || '', blocker:row.blocker || '', timeSpentSeconds:Number(row.time_spent_seconds) || 0,
+      createdAt:row.created_at || new Date().toISOString(), completedAt:row.completed_at || null,
+      completedDate:row.completed_date || null, comments:[], links:[]
+    };
+  }
+  function clearAuth(keepLocal = true) {
+    session = null;
+    syncEnabled = false;
+    localStorage.removeItem(SESSION_KEY);
+    localStorage.removeItem(SYNC_KEY);
+    remoteTaskIds.clear(); remoteCommentIds.clear(); remoteLinkIds.clear();
+    syncStatusText = '';
+    if (!keepLocal) { tasks = []; timer = null; save(false); }
+    updateAuthUI();
+  }
+  async function loadCloudData() {
+    const localTasks = clone(tasks);
+    const [taskRows, commentRows, linkRows] = await Promise.all([
+      cloudRequest('nmm_tasks?select=*'),
+      cloudRequest('nmm_task_comments?select=id,task_id,text,source,created_at'),
+      cloudRequest('nmm_task_links?select=id,task_id,label,url,created_at')
+    ]);
+    remoteTaskIds.clear(); taskRows.forEach(row => remoteTaskIds.add(String(row.id)));
+    remoteCommentIds.clear(); commentRows.forEach(row => remoteCommentIds.add(String(row.id)));
+    remoteLinkIds.clear(); linkRows.forEach(row => remoteLinkIds.add(String(row.id)));
+    const remoteById = new Map(taskRows.map(row => [String(row.id), rowToTask(row)]));
+    for (const row of commentRows) {
+      const task = remoteById.get(String(row.task_id));
+      if (task) task.comments.push({ id:String(row.id), text:row.text, source:row.source || 'Manual', createdAt:row.created_at });
+    }
+    for (const row of linkRows) {
+      const task = remoteById.get(String(row.task_id));
+      if (task) task.links.push({ id:String(row.id), label:row.label || '', url:row.url, createdAt:row.created_at });
+    }
+    const localOnlyTasks = localTasks.filter(task => !remoteById.has(String(task.id)));
+    const remoteCommentSet = new Set(remoteCommentIds);
+    const remoteLinkSet = new Set(remoteLinkIds);
+    const missingLocalComments = localTasks.reduce((sum, task) => sum + (task.comments || []).filter(item => !remoteCommentSet.has(String(item.id))).length, 0);
+    const missingLocalLinks = localTasks.reduce((sum, task) => sum + (task.links || []).filter(item => !remoteLinkSet.has(String(item.id))).length, 0);
+    const pendingLocalData = localOnlyTasks.length + missingLocalComments + missingLocalLinks;
+    if (pendingLocalData && !window.confirm(`Enviar ${pendingLocalData} item(ns) local(is) para a conta privada do Supabase? Nada será apagado do navegador.`)) {
+      clearAuth(true);
+      setAuthMessage('Nada foi enviado. Você continua no modo local.');
+      return false;
+    }
+    for (const local of localTasks) {
+      const remote = remoteById.get(String(local.id));
+      if (!remote) {
+        remoteById.set(String(local.id), local);
+        continue;
+      }
+      const commentIds = new Set((remote.comments || []).map(item => String(item.id)));
+      for (const item of local.comments || []) if (!commentIds.has(String(item.id))) remote.comments.push(item);
+      const linkIds = new Set((remote.links || []).map(item => String(item.id)));
+      for (const item of local.links || []) if (!linkIds.has(String(item.id))) remote.links.push(item);
+    }
+    tasks = Array.from(remoteById.values());
+    syncEnabled = true;
+    localStorage.setItem(SYNC_KEY, 'true');
+    setAuthMessage('Seus dados sincronizam entre aparelhos e ficam privados na sua conta.');
+    save(false); render(); updateAuthUI();
+    return await syncCloud();
+  }
+  async function syncCloud() {
+    if (!session?.user?.id || !syncEnabled) return false;
+    if (syncInFlight) { syncQueued = true; return true; }
+    syncInFlight = true;
+    try {
+      do {
+        syncQueued = false;
+        const currentTasks = clone(tasks);
+        const localTaskIds = new Set(currentTasks.map(task => String(task.id)));
+        const missingRemoteTasks = Array.from(remoteTaskIds).filter(remoteId => !localTaskIds.has(remoteId));
+        for (const taskId of missingRemoteTasks) {
+          await cloudRequest(`nmm_tasks?id=eq.${encodeURIComponent(taskId)}`, { method:'DELETE' });
+          remoteTaskIds.delete(taskId);
+        }
+        if (currentTasks.length) {
+          const rows = currentTasks.map(taskToRow);
+          await cloudRequest('nmm_tasks?on_conflict=id', {
+            method:'POST', headers:{ Prefer:'resolution=merge-duplicates,return=minimal' }, body:JSON.stringify(rows)
+          });
+          localTaskIds.forEach(taskId => remoteTaskIds.add(taskId));
+        }
+        const localComments = currentTasks.flatMap(task => (task.comments || []).map(comment => ({
+          id:String(comment.id), task_id:String(task.id), owner_id:session.user.id, text:comment.text,
+          source:['Manual','WhatsApp','Radar'].includes(comment.source) ? comment.source : 'Manual',
+          created_at:comment.createdAt || new Date().toISOString()
+        })));
+        const newComments = localComments.filter(row => !remoteCommentIds.has(row.id));
+        if (newComments.length) {
+          await cloudRequest('nmm_task_comments', { method:'POST', body:JSON.stringify(newComments) });
+          newComments.forEach(row => remoteCommentIds.add(row.id));
+        }
+        const localLinks = currentTasks.flatMap(task => (task.links || []).map(link => ({
+          id:String(link.id), task_id:String(task.id), owner_id:session.user.id, label:link.label || '', url:link.url,
+          created_at:link.createdAt || new Date().toISOString()
+        })));
+        const localLinkIds = new Set(localLinks.map(row => row.id));
+        for (const linkId of Array.from(remoteLinkIds)) {
+          if (!localLinkIds.has(linkId)) {
+            await cloudRequest(`nmm_task_links?id=eq.${encodeURIComponent(linkId)}`, { method:'DELETE' });
+            remoteLinkIds.delete(linkId);
+          }
+        }
+        const newLinks = localLinks.filter(row => !remoteLinkIds.has(row.id));
+        if (newLinks.length) {
+          await cloudRequest('nmm_task_links', { method:'POST', body:JSON.stringify(newLinks) });
+          newLinks.forEach(row => remoteLinkIds.add(row.id));
+        }
+        syncStatusText = `Sincronizado · ${new Date().toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' })}`;
+        $('authStatus').textContent = syncStatusText;
+      } while (syncQueued);
+      return true;
+    } catch (error) {
+      syncStatusText = 'Sincronização pendente';
+      $('authStatus').textContent = syncStatusText;
+      setAuthMessage('Os dados continuam salvos neste navegador; confira a conexão e tente sincronizar de novo.', true);
+      showToast('Não foi possível sincronizar agora. Seus dados locais foram mantidos.');
+      console.error('Na Minha Mão cloud sync:', error);
+      return false;
+    } finally {
+      syncInFlight = false;
+      updateAuthUI();
+    }
+  }
+  function scheduleCloudSync() {
+    if (!session?.user?.id || !syncEnabled) return;
+    clearTimeout(syncTimeout);
+    syncTimeout = setTimeout(() => syncCloud(), 500);
+  }
+  async function finishLogin(data) {
+    if (!storeSession(data)) throw new Error('A conta foi autenticada, mas a sessão não retornou. Tente entrar novamente.');
+    const user = data.user || await getCurrentUser();
+    session.user = user;
+    localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+    return await loadCloudData();
+  }
+  async function signUp() {
+    if (!CLOUD_READY) return;
+    const email = $('authEmail').value.trim();
+    const password = $('authPassword').value;
+    if (!email || password.length < 8) { setAuthMessage('Informe seu e-mail e uma senha com pelo menos 8 caracteres.', true); return; }
+    setAuthBusy(true, 'Criando sua conta segura…');
+    try {
+      const data = await authRequest('signup', { email, password });
+      if (data.access_token && data.refresh_token) await finishLogin(data);
+      else setAuthMessage('Cadastro iniciado. Confirme o e-mail enviado pelo Supabase e depois entre no app.');
+    } catch (error) {
+      setAuthMessage(`Não consegui criar a conta: ${error.message}`, true);
+    } finally { authBusy = false; updateAuthUI(); }
+  }
+  async function signIn() {
+    if (!CLOUD_READY) return;
+    const email = $('authEmail').value.trim();
+    const password = $('authPassword').value;
+    if (!email || !password) { setAuthMessage('Informe seu e-mail e senha.', true); return; }
+    setAuthBusy(true, 'Entrando e carregando suas tarefas…');
+    try {
+      const data = await authRequest('token?grant_type=password', { email, password });
+      const connected = await finishLogin(data);
+      if (connected) showToast('Conta conectada e tarefas sincronizadas.');
+    } catch (error) {
+      setAuthMessage(`Não consegui entrar: ${error.message}`, true);
+    } finally { authBusy = false; updateAuthUI(); }
+  }
+  async function signOut() {
+    if (!session?.access_token) return;
+    setAuthBusy(true, 'Desconectando…');
+    try {
+      await fetch(`${CLOUD.url}/auth/v1/logout`, { method:'POST', headers:authHeaders({ Authorization:`Bearer ${session.access_token}` }) });
+    } catch { /* A sessão local será removida mesmo se estiver offline. */ }
+    clearAuth(false); render();
+    authBusy = false; updateAuthUI();
+    setAuthMessage('Você saiu. As tarefas continuam na conta e serão carregadas ao entrar novamente.');
+  }
+  async function initializeAuth() {
+    updateAuthUI();
+    if (!CLOUD_READY || !session?.access_token) return;
+    setAuthBusy(true, 'Verificando sua sessão…');
+    try {
+      await ensureFreshSession();
+      session.user = await getCurrentUser();
+      localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+      await loadCloudData();
+    } catch (error) {
+      clearAuth(true);
+      setAuthMessage('Sua sessão expirou ou não pôde ser validada. Entre novamente para sincronizar.', true);
+    } finally { authBusy = false; updateAuthUI(); }
+  }
+  async function syncNow() {
+    if (!session?.user?.id) return;
+    setAuthBusy(true, 'Buscando atualizações…');
+    try {
+      const synced = await loadCloudData();
+      if (synced) showToast('Sincronização concluída.');
+    } catch (error) {
+      setAuthMessage('Não foi possível atualizar agora. Seus dados locais foram mantidos.', true);
+      showToast('A sincronização falhou; nada foi apagado.');
+    } finally { authBusy = false; updateAuthUI(); }
+  }
+
   $('newBtn').addEventListener('click', openNewForm);
   $('closeFormBtn').addEventListener('click', closeForm);
   $('taskForm').addEventListener('submit', onSubmitTask);
@@ -384,8 +719,14 @@
   $('commentForm').addEventListener('submit', onCommentSubmit);
   $('linkForm').addEventListener('submit', onLinkSubmit);
   $('linksList').addEventListener('click', handleLinkAction);
-  window.addEventListener('beforeunload', save);
+  $('signupBtn').addEventListener('click', signUp);
+  $('loginBtn').addEventListener('click', signIn);
+  $('logoutBtn').addEventListener('click', signOut);
+  $('syncNowBtn').addEventListener('click', syncNow);
+  window.addEventListener('online', scheduleCloudSync);
+  window.addEventListener('beforeunload', () => save(false));
   setInterval(updateTimerDisplays, 1000);
   setFormMode();
   render();
+  initializeAuth();
 })();

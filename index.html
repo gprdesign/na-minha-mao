@@ -79,6 +79,7 @@
     .reward { color:#ffe3a3 !important; }
     .empty { color:var(--muted); text-align:center; padding:26px 12px; border:1px dashed var(--line); border-radius:14px; }
     .notice { color:var(--muted); font-size:.82rem; padding:12px 2px 0; }
+    .error-text { color:var(--red) !important; }
     .hidden { display:none !important; }
     dialog { border:1px solid var(--line); border-radius:16px; background:var(--panel); color:var(--text); width:min(600px,calc(100% - 24px)); max-height:90vh; overflow:auto; padding:20px; box-shadow:0 20px 80px #0008; }
     dialog::backdrop { background:#050914bb; }
@@ -100,6 +101,22 @@
         <button class="btn primary" id="newBtn" type="button">＋ Nova tarefa</button>
       </div>
     </header>
+
+    <section class="panel" id="authPanel" aria-label="Sincronização segura">
+      <div class="panel-head"><h2>Sincronização segura</h2><span class="hint" id="authStatus">Modo local</span></div>
+      <div class="form-grid" id="authFields">
+        <div class="field"><label for="authEmail">E-mail</label><input id="authEmail" type="email" autocomplete="email" required placeholder="voce@exemplo.com"></div>
+        <div class="field"><label for="authPassword">Senha</label><input id="authPassword" type="password" autocomplete="current-password" minlength="8" required placeholder="Mínimo de 8 caracteres"></div>
+      </div>
+      <div class="actions">
+        <button class="btn primary" id="loginBtn" type="button">Entrar e sincronizar</button>
+        <button class="btn" id="signupBtn" type="button">Criar conta</button>
+        <button class="btn hidden" id="logoutBtn" type="button">Sair</button>
+        <button class="btn hidden" id="syncNowBtn" type="button">Sincronizar agora</button>
+      </div>
+      <p class="hint" id="authMessage" style="margin-top:10px">Entre ou crie sua conta para sincronizar. Seus dados atuais continuam salvos neste navegador.</p>
+      <p class="hint" style="margin-top:5px">Sua senha é tratada diretamente pelo Supabase; não a envie no chat.</p>
+    </section>
 
     <section class="stats" aria-label="Resumo">
       <div class="stat"><span>Liberadas</span><strong id="activeCount">0</strong></div>
@@ -169,7 +186,7 @@
       </div>
       <details style="margin-top:24px"><summary class="muted" style="cursor:pointer">Concluídas (<span id="doneBoardCount">0</span>)</summary><section class="list" id="doneBoardList" style="margin-top:11px"></section></details>
     </div>
-    <footer>Protótipo local: os dados ficam neste navegador e não sincronizam entre dispositivos ainda. Use “Exportar backup” para guardar uma cópia.</footer>
+    <footer>Sem login, os dados ficam neste navegador. Ao entrar, sincronizam com sua conta privada. Use “Exportar backup” para guardar uma cópia.</footer>
   </main>
 
   <dialog id="releaseDialog">
@@ -210,7 +227,8 @@
     </section>
   </dialog>
   <div id="toast" class="toast hidden" role="status"></div>
-  <script src="./app.js?v=2" defer></script>
+  <script src="./config.js?v=1" defer></script>
+  <script src="./app.js?v=3" defer></script>
   <script>if('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('./sw.js?v=2',{updateViaCache:'none'}).then(registration=>registration.update()).catch(()=>{});</script>
 </body>
 </html>
