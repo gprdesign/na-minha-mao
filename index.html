@@ -131,7 +131,7 @@
     details[open] > .section-summary::after { transform:rotate(180deg); }
     .task-section > .list { margin-top:11px; }
     .list { display:grid; gap:11px; }
-    #tasksPage .list { grid-template-columns:repeat(auto-fit,minmax(min(100%,155px),1fr)); align-items:start; gap:9px; }
+    #tasksPage .list { grid-template-columns:repeat(auto-fill,minmax(min(100%,155px),1fr)); align-items:start; gap:9px; }
     #tasksPage .task { min-width:0; padding:10px; border-radius:13px; }
     .task-clickable { cursor:pointer; transition:background .16s,border-color .16s,transform .16s; }
     .task-clickable:hover { background:rgba(27,38,60,.98); border-color:rgba(139,175,255,.35); transform:translateY(-1px); }
@@ -208,6 +208,7 @@
     .task-description,.reward { display:none; }
     .reward { color:#ffe3a3 !important; }
     .empty { color:var(--muted); text-align:center; padding:26px 12px; border:1px dashed var(--line); border-radius:14px; }
+    #tasksPage .list > .empty { grid-column:1 / -1; }
     .notice { color:var(--muted); font-size:.82rem; padding:12px 2px 0; }
     .error-text { color:var(--red) !important; }
     .hidden { display:none !important; }
@@ -481,6 +482,6 @@
   <div id="toast" class="toast hidden" role="status"></div>
   <script src="./config.js?v=1" defer></script>
   <script src="./app.js?v=24" defer></script>
-  <script>if('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('./sw.js?v=28',{updateViaCache:'none'}).then(registration=>registration.update()).catch(()=>{});</script>
+  <script>if('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('./sw.js?v=29',{updateViaCache:'none'}).then(registration=>registration.update()).catch(()=>{});</script>
 </body>
 </html>
