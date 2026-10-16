@@ -253,6 +253,11 @@
     persistTaskOrder(nextOrder, nextTaskOrderTimestamp());
     scheduleCloudSync();
   }
+  function manualOrderToast() {
+    return session?.user?.id && syncEnabled
+      ? 'Ordem atualizada; sincronizando com sua conta…'
+      : 'Ordem salva neste navegador. Entre na conta para sincronizar.';
+  }
   function taskIdsInList(listKey) {
     const list = $(ORDER_LIST_IDS[listKey]);
     return list ? Array.from(list.querySelectorAll('.task[data-task]'), card => String(card.dataset.task)) : normalizeTaskOrder(taskOrder)[listKey] || [];
@@ -297,7 +302,7 @@
     [ids[from],ids[to]] = [ids[to],ids[from]];
     saveManualOrder(listKey, ids);
     render();
-    showToast('Ordem salva neste navegador.');
+    showToast(manualOrderToast());
   }
   function moveTaskToStatus(taskId, targetStatus) {
     const task = tasks.find(item => String(item.id) === String(taskId));
@@ -399,7 +404,7 @@
       if (targetSection) targetSection.open = true;
     }
     const statusLabel = TASK_STATUS_OPTIONS.find(option => option.id === targetStatus)?.label;
-    showToast(statusChanged ? `Movida para ${statusLabel}.` : 'Ordem salva neste navegador.');
+    showToast(statusChanged ? `Movida para ${statusLabel}. ${manualOrderToast()}` : manualOrderToast());
   }
   function handleTaskDragEnd() {
     if (!draggedTaskId) return;
