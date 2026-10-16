@@ -268,7 +268,7 @@
     body.tasks-screen #tasksPage .task-top { display:block; min-height:0; }
     body.tasks-screen #tasksPage .task-drag-handle { position:absolute; left:1px; top:0; width:26px; height:26px; }
     body.tasks-screen #tasksPage .task-main { width:100%; min-height:0; }
-    body.tasks-screen #tasksPage .task-title { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; min-height:2.24em; overflow:hidden; font-size:clamp(.78rem,.95vw,1rem); line-height:1.12; }
+    body.tasks-screen #tasksPage .task-title { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; min-height:2.24em; overflow:hidden; font-size:clamp(.74rem,.88vw,.92rem); line-height:1.12; }
     body.tasks-screen #tasksPage .task-summary { display:flex; align-items:flex-start; gap:2px 8px; margin-top:3px; font-size:.68rem; }
     body.tasks-screen #tasksPage .task-release { gap:0 4px; font-size:.7rem; line-height:1.15; }
     body.tasks-screen #tasksPage .task-release-date { font-size:.66rem; }
@@ -282,7 +282,7 @@
     body.tasks-screen #tasksPage .list.gallery-tight .task-menu > summary { width:26px; height:26px; }
     body.tasks-screen #tasksPage .list.gallery-tight .task-actions { right:28px; }
     body.tasks-screen #tasksPage .list.gallery-tight .task-actions .btn { width:26px; min-width:26px; height:26px; min-height:26px; }
-    body.tasks-screen #tasksPage .list.gallery-tight .task-title { -webkit-line-clamp:2; min-height:2.24em; font-size:.78rem; }
+    body.tasks-screen #tasksPage .list.gallery-tight .task-title { -webkit-line-clamp:2; min-height:2.24em; font-size:.74rem; }
     body.tasks-screen #tasksPage .list.gallery-tight .task-summary { margin-top:2px; font-size:.62rem; }
     body.tasks-screen #tasksPage .list.gallery-tight .task-release { font-size:.64rem; }
     body.tasks-screen #tasksPage .list.gallery-tight .task-release-date { font-size:.6rem; }
@@ -304,8 +304,8 @@
       body.tasks-screen #tasksPage .list.gallery-tight .task-menu > summary { width:34px; height:34px; }
       body.tasks-screen #tasksPage .list.gallery-tight .task-actions { right:36px; }
       body.tasks-screen #tasksPage .list.gallery-tight .task-actions .btn { width:34px; min-width:34px; height:34px; min-height:34px; }
-      body.tasks-screen #tasksPage .task-title { font-size:.82rem; }
-      body.tasks-screen #tasksPage .list.gallery-tight .task-title { font-size:.74rem; }
+      body.tasks-screen #tasksPage .task-title { font-size:.76rem; }
+      body.tasks-screen #tasksPage .list.gallery-tight .task-title { font-size:.70rem; }
     }
     @media(prefers-reduced-motion:reduce) { .next-task-card,.task-target-highlight,.history-target-highlight { animation:none; } }
   </style>
@@ -540,6 +540,6 @@
   <div id="toast" class="toast hidden" role="status"></div>
   <script src="./config.js?v=1" defer></script>
   <script src="./app.js?v=27" defer></script>
-  <script>if('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('./sw.js?v=32',{updateViaCache:'none'}).then(registration=>registration.update()).catch(()=>{});</script>
+  <script>if('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('./sw.js?v=33',{updateViaCache:'none'}).then(registration=>registration.update()).catch(()=>{});</script>
 </body>
 </html>
