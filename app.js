@@ -1,6 +1,7 @@
 (() => {
   'use strict';
   const STORAGE_KEY = 'naMinhaMao.tasks.v1';
+  const NOTES_STORAGE_KEY = 'naMinhaMao.notes.v1';
   const TIMER_KEY = 'naMinhaMao.timer.v1';
   const TASK_ORDER_KEY = 'naMinhaMao.taskOrder.v1';
   const TASK_ORDER_UPDATED_KEY = 'naMinhaMao.taskOrderUpdatedAt.v1';
@@ -14,6 +15,9 @@
   const CLOUD_READY = Boolean(CLOUD.url && CLOUD.publishableKey);
   const $ = (id) => document.getElementById(id);
   let tasks = load(STORAGE_KEY, []);
+  let notes = load(NOTES_STORAGE_KEY, []);
+  if (!Array.isArray(notes)) notes = [];
+  let remoteNotesEnabled = false;
   let timer = load(TIMER_KEY, null);
   let taskOrder = load(TASK_ORDER_KEY, {});
   if (!taskOrder || typeof taskOrder !== 'object' || Array.isArray(taskOrder)) taskOrder = {};
@@ -29,7 +33,7 @@
   let historyExpanded = false;
   localStorage.removeItem('naMinhaMao.view');
   const storedPage = localStorage.getItem('naMinhaMao.page');
-  let currentPage = ['home','tasks','settings'].includes(storedPage) ? storedPage : 'home';
+  let currentPage = ['home','tasks','notes','settings'].includes(storedPage) ? storedPage : 'home';
   let toastTimeout;
   let syncTimeout;
   let syncInFlight = false;
@@ -40,6 +44,7 @@
   const remoteTaskIds = new Set();
   const remoteCommentIds = new Set();
   const remoteLinkIds = new Set();
+  const remoteNoteIds = new Set();
 
   function load(key, fallback) {
     try { const value = localStorage.getItem(key); return value ? JSON.parse(value) : fallback; }
@@ -60,6 +65,10 @@
   function save(schedule = true) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
     localStorage.setItem(TIMER_KEY, JSON.stringify(timer));
+    if (schedule) scheduleCloudSync();
+  }
+  function saveNotes(schedule = true) {
+    localStorage.setItem(NOTES_STORAGE_KEY, JSON.stringify(notes));
     if (schedule) scheduleCloudSync();
   }
   function id() { return globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`; }
@@ -542,8 +551,101 @@
     button.textContent = historyExpanded ? 'Ver menos' : 'Ver mais';
     button.setAttribute('aria-expanded', String(historyExpanded));
   }
+  function noteRevision(note) {
+    const value = Date.parse(note?.updatedAt || note?.createdAt || '');
+    return Number.isFinite(value) ? value : 0;
+  }
+  function nextNoteTimestamp(note) {
+    return new Date(Math.max(Date.now(), noteRevision(note) + 1)).toISOString();
+  }
+  function updateNotesSyncStatus() {
+    const status = $('notesSyncStatus');
+    if (!status) return;
+    if (session?.user?.id && syncEnabled) {
+      status.textContent = remoteNotesEnabled
+        ? 'Sincronização privada de notas ativa na sua conta.'
+        : 'Notas salvas neste navegador; sincronização da conta ainda não foi ativada.';
+    } else {
+      status.textContent = 'Sem login, as notas ficam salvas neste navegador.';
+    }
+  }
+  function renderNotes() {
+    const list = $('notesList');
+    if (!list) return;
+    updateNotesSyncStatus();
+    const query = String($('notesSearch')?.value || '').trim().toLocaleLowerCase('pt-BR');
+    const visibleNotes = notes
+      .filter(note => note && typeof note === 'object' && !note.deletedAt)
+      .filter(note => !query || `${note.title || ''} ${note.content || ''}`.toLocaleLowerCase('pt-BR').includes(query))
+      .sort((a,b) => noteRevision(b) - noteRevision(a));
+    $('notesCount').textContent = `${visibleNotes.length} nota${visibleNotes.length === 1 ? '' : 's'}`;
+    if (!visibleNotes.length) {
+      list.innerHTML = query
+        ? '<div class="empty">Nenhuma nota encontrada.</div>'
+        : '<div class="empty">Ainda não há notas. Crie uma para guardar uma ideia ou informação.</div>';
+      return;
+    }
+    list.innerHTML = visibleNotes.map(note => `<article class="panel note-card"><div class="panel-head"><div class="note-heading"><h3>${escapeHTML(note.title || 'Nota sem título')}</h3><time class="hint" datetime="${escapeHTML(note.updatedAt || note.createdAt || '')}">Atualizada ${escapeHTML(formatTimestamp(note.updatedAt || note.createdAt))}</time></div><div class="note-actions"><button class="btn ghost small" type="button" data-note-action="edit" data-id="${escapeHTML(note.id)}">Editar</button><button class="btn ghost small" type="button" data-note-action="delete" data-id="${escapeHTML(note.id)}">Excluir</button></div></div><p class="note-content">${escapeHTML(note.content || '')}</p></article>`).join('');
+  }
+  function openNewNote() {
+    $('noteForm').reset();
+    $('noteId').value = '';
+    $('noteFormHeading').textContent = 'Nova nota';
+    $('noteFormPanel').classList.remove('hidden');
+    $('noteContent').focus();
+  }
+  function openEditNote(noteId) {
+    const note = notes.find(item => String(item.id) === String(noteId) && !item.deletedAt);
+    if (!note) return;
+    $('noteId').value = String(note.id);
+    $('noteTitle').value = note.title || '';
+    $('noteContent').value = note.content || '';
+    $('noteFormHeading').textContent = 'Editar nota';
+    $('noteFormPanel').classList.remove('hidden');
+    $('noteTitle').focus();
+    $('noteFormPanel').scrollIntoView({ behavior:'smooth', block:'start' });
+  }
+  function closeNoteForm() {
+    $('noteFormPanel').classList.add('hidden');
+    $('noteForm').reset();
+    $('noteId').value = '';
+  }
+  function onSubmitNote(event) {
+    event.preventDefault();
+    const title = $('noteTitle').value.trim();
+    const content = $('noteContent').value.trim();
+    if (!content) { $('noteContent').focus(); showToast('Escreva o conteúdo da nota.'); return; }
+    const noteId = String($('noteId').value || '');
+    const existing = noteId ? notes.find(note => String(note.id) === noteId && !note.deletedAt) : null;
+    const now = existing ? nextNoteTimestamp(existing) : new Date().toISOString();
+    if (existing) {
+      existing.title = title;
+      existing.content = content;
+      existing.updatedAt = now;
+    } else {
+      notes.unshift({ id:id(), title, content, createdAt:now, updatedAt:now, deletedAt:null });
+    }
+    saveNotes();
+    renderNotes();
+    closeNoteForm();
+    showToast(existing ? 'Nota atualizada.' : 'Nota salva.');
+  }
+  function handleNotesListClick(event) {
+    const button = event.target.closest('button[data-note-action]');
+    if (!button) return;
+    const note = notes.find(item => String(item.id) === String(button.dataset.id) && !item.deletedAt);
+    if (!note) return;
+    if (button.dataset.noteAction === 'edit') { openEditNote(note.id); return; }
+    if (button.dataset.noteAction === 'delete') {
+      if (!window.confirm(`Excluir a nota “${note.title || 'Nota sem título'}”?`)) return;
+      const now = nextNoteTimestamp(note);
+      note.deletedAt = now;
+      note.updatedAt = now;
+      saveNotes(); renderNotes(); showToast('Nota excluída.');
+    }
+  }
   function applyPageMode() {
-    const views = { home:'homePage', tasks:'tasksPage', settings:'settingsPage' };
+    const views = { home:'homePage', tasks:'tasksPage', notes:'notesPage', settings:'settingsPage' };
     Object.entries(views).forEach(([page, id]) => $(id).classList.toggle('hidden', currentPage !== page));
     document.querySelectorAll('.nav-btn[data-page]').forEach(button => {
       if (button.dataset.page === currentPage) button.setAttribute('aria-current', 'page');
@@ -551,11 +653,12 @@
     });
   }
   function setPage(page) {
-    if (!['home','tasks','settings'].includes(page)) return;
+    if (!['home','tasks','notes','settings'].includes(page)) return;
     currentPage = page;
     localStorage.setItem('naMinhaMao.page', currentPage);
     applyPageMode();
     if (currentPage === 'tasks') applyViewMode();
+    if (currentPage === 'notes') renderNotes();
   }
   const landscapeTaskQuery = window.matchMedia('(orientation: landscape)');
   function updateTaskColumns() {
@@ -921,7 +1024,7 @@
     showToast('Liberada hoje. A contagem de dias começa agora.');
   }
   function exportBackup() {
-    const blob = new Blob([JSON.stringify({ exportedAt:new Date().toISOString(), tasks, taskOrder }, null, 2)], { type:'application/json' });
+    const blob = new Blob([JSON.stringify({ exportedAt:new Date().toISOString(), tasks, notes:notes.filter(note => !note.deletedAt), taskOrder }, null, 2)], { type:'application/json' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url; link.download = `na-minha-mao-backup-${todayKey()}.json`; link.click();
@@ -1017,6 +1120,20 @@
       completedDate:row.completed_date || null, comments:[], links:[], subtasks:Array.isArray(row.subtasks) ? row.subtasks : []
     };
   }
+  function rowToNote(row) {
+    return {
+      id:String(row.id), title:row.title || '', content:row.content || '',
+      createdAt:row.created_at || new Date().toISOString(), updatedAt:row.updated_at || row.created_at || new Date().toISOString(),
+      deletedAt:row.deleted_at || null
+    };
+  }
+  function noteToRow(note) {
+    return {
+      id:String(note.id), owner_id:session.user.id, title:String(note.title || ''), content:String(note.content || ''),
+      created_at:note.createdAt || new Date().toISOString(), updated_at:note.updatedAt || note.createdAt || new Date().toISOString(),
+      deleted_at:note.deletedAt || null
+    };
+  }
   function subtaskRevision(item) {
     const value = Date.parse(item?.updatedAt || item?.createdAt || '');
     return Number.isFinite(value) ? value : 0;
@@ -1036,13 +1153,16 @@
     syncEnabled = false;
     localStorage.removeItem(SESSION_KEY);
     localStorage.removeItem(SYNC_KEY);
-    remoteTaskIds.clear(); remoteCommentIds.clear(); remoteLinkIds.clear();
+    remoteTaskIds.clear(); remoteCommentIds.clear(); remoteLinkIds.clear(); remoteNoteIds.clear();
+    remoteNotesEnabled = false;
     syncStatusText = '';
     if (!keepLocal) { tasks = []; timer = null; save(false); }
+    updateNotesSyncStatus();
     updateAuthUI();
   }
   async function loadCloudData() {
     const localTasks = clone(tasks);
+    const localNotes = clone(notes);
     const localOrder = normalizeTaskOrder(taskOrder);
     const localOrderUpdatedAt = taskOrderUpdatedAt;
     const [taskRows, commentRows, linkRows] = await Promise.all([
@@ -1050,12 +1170,22 @@
       cloudRequest('nmm_task_comments?select=id,task_id,text,source,created_at'),
       cloudRequest('nmm_task_links?select=id,task_id,label,url,created_at')
     ]);
+    let noteRows = [];
+    remoteNotesEnabled = false;
+    try {
+      noteRows = await cloudRequest('nmm_notes?select=*');
+      remoteNotesEnabled = true;
+    } catch {
+      remoteNoteIds.clear();
+    }
     const currentUser = await getCurrentUser();
     setRemoteUser(currentUser);
     remoteTaskIds.clear(); taskRows.forEach(row => remoteTaskIds.add(String(row.id)));
     remoteCommentIds.clear(); commentRows.forEach(row => remoteCommentIds.add(String(row.id)));
     remoteLinkIds.clear(); linkRows.forEach(row => remoteLinkIds.add(String(row.id)));
+    remoteNoteIds.clear(); if (remoteNotesEnabled) noteRows.forEach(row => remoteNoteIds.add(String(row.id)));
     const remoteById = new Map(taskRows.map(row => [String(row.id), rowToTask(row)]));
+    const remoteNotesById = new Map((remoteNotesEnabled ? noteRows : []).map(row => [String(row.id), rowToNote(row)]));
     for (const row of commentRows) {
       const task = remoteById.get(String(row.task_id));
       if (task) task.comments.push({ id:String(row.id), text:row.text, source:row.source || 'Manual', createdAt:row.created_at });
@@ -1079,10 +1209,16 @@
         return !existing || subtaskRevision(item) > subtaskRevision(existing);
       }).length;
     }, 0);
-    const pendingLocalData = localOnlyTasks.length + missingLocalComments + missingLocalLinks + missingLocalSubtasks;
+    const pendingLocalNotes = remoteNotesEnabled ? localNotes.reduce((sum, note) => {
+      const remote = remoteNotesById.get(String(note.id));
+      if (!remote) return sum + (note.deletedAt ? 0 : 1);
+      return sum + (noteRevision(note) > noteRevision(remote) ? 1 : 0);
+    }, 0) : 0;
+    const pendingLocalData = localOnlyTasks.length + missingLocalComments + missingLocalLinks + missingLocalSubtasks + pendingLocalNotes;
     if (pendingLocalData && !window.confirm(`Enviar ${pendingLocalData} item(ns) local(is) para a conta privada do Supabase? Nada será apagado do navegador.`)) {
       clearAuth(true);
       setAuthMessage('Nada foi enviado. Você continua no modo local.');
+      renderNotes();
       return false;
     }
     for (const local of localTasks) {
@@ -1098,6 +1234,16 @@
       remote.subtasks = mergeSubtasks(remote.subtasks, local.subtasks);
     }
     tasks = Array.from(remoteById.values());
+    if (remoteNotesEnabled) {
+      for (const local of localNotes) {
+        const key = String(local.id);
+        const remote = remoteNotesById.get(key);
+        if (!remote || noteRevision(local) > noteRevision(remote)) remoteNotesById.set(key, local);
+      }
+      notes = Array.from(remoteNotesById.values());
+      saveNotes(false);
+    }
+    renderNotes();
     const userMetadata = currentUser.user_metadata && typeof currentUser.user_metadata === 'object' ? currentUser.user_metadata : {};
     const remoteOrder = normalizeTaskOrder(userMetadata[USER_TASK_ORDER_KEY]);
     const remoteOrderUpdatedAt = userMetadata[USER_TASK_ORDER_UPDATED_KEY] || null;
@@ -1116,9 +1262,19 @@
     }
     syncEnabled = true;
     localStorage.setItem(SYNC_KEY, 'true');
+    renderNotes();
     setAuthMessage('Seus dados sincronizam entre aparelhos e ficam privados na sua conta.');
     save(false); render(); updateAuthUI();
     return await syncCloud();
+  }
+  async function syncNotesToCloud() {
+    if (!remoteNotesEnabled || !session?.user?.id || !syncEnabled) return;
+    const rows = notes.filter(note => note && note.id != null).map(noteToRow);
+    if (!rows.length) return;
+    await cloudRequest('nmm_notes?on_conflict=id', {
+      method:'POST', headers:{ Prefer:'resolution=merge-duplicates,return=minimal' }, body:JSON.stringify(rows)
+    });
+    rows.forEach(row => remoteNoteIds.add(String(row.id)));
   }
   async function syncTaskOrderToCloud() {
     if (!session?.access_token || !syncEnabled) return;
@@ -1198,6 +1354,7 @@
           await cloudRequest('nmm_task_links', { method:'POST', body:JSON.stringify(newLinks) });
           newLinks.forEach(row => remoteLinkIds.add(row.id));
         }
+        await syncNotesToCloud();
         await syncTaskOrderToCloud();
         syncStatusText = `Sincronizado · ${new Date().toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' })}`;
         $('authStatus').textContent = syncStatusText;
@@ -1311,6 +1468,12 @@
   $('newBtn').addEventListener('click', openNewForm);
   $('closeFormBtn').addEventListener('click', closeForm);
   $('taskForm').addEventListener('submit', onSubmitTask);
+  $('newNoteBtn').addEventListener('click', openNewNote);
+  $('noteForm').addEventListener('submit', onSubmitNote);
+  $('closeNoteFormBtn').addEventListener('click', closeNoteForm);
+  $('cancelNoteBtn').addEventListener('click', closeNoteForm);
+  $('notesSearch').addEventListener('input', renderNotes);
+  $('notesList').addEventListener('click', handleNotesListClick);
   document.querySelectorAll('input[name="ready"]').forEach(input => input.addEventListener('change', setFormMode));
   $('releaseForm').addEventListener('submit', onReleaseSubmit);
   $('cancelReleaseBtn').addEventListener('click', () => $('releaseDialog').close());
@@ -1364,5 +1527,6 @@
   setInterval(updateTimerDisplays, 1000);
   setFormMode();
   render();
+  renderNotes();
   initializeAuth();
 })();

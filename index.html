@@ -72,6 +72,14 @@
     .history-detail { color:#d1daea; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
     .history-time { color:var(--muted); font-size:.78rem; white-space:nowrap; flex:none; }
     .history-arrow { color:var(--accent); font-size:1rem; font-weight:750; }
+    .notes-toolbar { display:flex; align-items:center; gap:12px; margin:14px 0; }
+    .notes-toolbar input { flex:1; min-width:0; max-width:520px; }
+    .notes-list { display:grid; gap:12px; }
+    .note-card { margin:0; }
+    .note-heading h3 { margin:0; font-size:1.04rem; overflow-wrap:anywhere; }
+    .note-heading time { display:block; margin-top:4px; }
+    .note-actions { display:flex; align-items:center; gap:6px; flex:none; }
+    .note-content { margin:0; color:#d1daea; white-space:pre-wrap; overflow-wrap:anywhere; }
     .history-footer { display:flex; justify-content:center; margin-top:12px; }
     .top-actions { display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; }
     .app-header { align-items:center; }
@@ -205,6 +213,7 @@
     footer { color:var(--muted); font-size:.8rem; margin-top:28px; text-align:center; }
     @media(max-width:650px) { .wrap{padding:18px 13px calc(112px + env(safe-area-inset-bottom,0px));} header{display:block;} .brand-mark{width:40px;height:40px;} .main-nav{bottom:calc(8px + env(safe-area-inset-bottom,0px));width:calc(100% - 24px);} .nav-btn{flex-direction:column;gap:3px;padding:8px 4px;font-size:.76rem;} .nav-icon{width:18px;height:18px;} .page-heading{align-items:flex-start;} .next-task-card{align-items:flex-start;padding:15px;gap:12px;} .next-task-cta{font-size:.78rem;align-self:center;} .next-task-title{font-size:1rem;} .dashboard-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;} .dashboard-card{min-height:150px;padding:14px;gap:10px;} .dashboard-count{font-size:2rem;} .stats{grid-template-columns:1fr 1fr;} .form-grid{grid-template-columns:1fr;} .field.full{grid-column:auto;} .task-top{display:flex;} .task-actions .btn{flex:1 1 auto;} .subtask-form{grid-template-columns:1fr;} .subtask-form .btn{width:100%;} .link-item{align-items:flex-start;} .history-item{display:grid;gap:4px;} .history-side{justify-content:space-between;} .history-time{white-space:normal;} }
     @media(max-width:650px) {
+      .note-card .panel-head { align-items:flex-start; flex-wrap:wrap; }
       .app-header { display:flex; align-items:flex-start; gap:8px; }
       .app-header .brand { min-width:0; }
       .app-header .zoom-control { gap:1px; padding:2px; }
@@ -249,6 +258,9 @@
       </button>
       <button class="nav-btn" type="button" data-page="tasks">
         <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01"/></svg><span>Tarefas</span>
+      </button>
+      <button class="nav-btn" type="button" data-page="notes">
+        <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l4 4v14H6zM15 3v5h4M9 12h7M9 16h7"/></svg><span>Notas</span>
       </button>
       <button class="nav-btn" type="button" data-page="settings">
         <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-1.7 2.94-.08-.02a1.7 1.7 0 0 0-1.72.5l-.06.07h-3.4l-.04-.08a1.7 1.7 0 0 0-1.45-.95 1.7 1.7 0 0 0-1.46.95l-.04.08h-3.4l-.06-.07a1.7 1.7 0 0 0-1.72-.5l-.08.02-1.7-2.94.06-.06A1.7 1.7 0 0 0 3.3 15l-.08-.04v-3.4l.08-.04a1.7 1.7 0 0 0 .34-1.88l-.06-.06 1.7-2.94.08.02a1.7 1.7 0 0 0 1.72-.5l.06-.07h3.4l.04.08a1.7 1.7 0 0 0 1.45.95 1.7 1.7 0 0 0 1.46-.95l.04-.08h3.4l.06.07a1.7 1.7 0 0 0 1.72.5l.08-.02 1.7 2.94-.06.06A1.7 1.7 0 0 0 20.7 11l.08.04v3.4z"/></svg><span>Configurações</span>
@@ -355,6 +367,23 @@
       </details>
     </div>
     </section>
+    <section id="notesPage" class="page-view hidden" aria-label="Notas">
+      <div class="page-heading"><div><p class="eyebrow">ANOTAÇÕES</p><h2>Notas</h2></div><button class="btn primary" id="newNoteBtn" type="button">＋ Nova nota</button></div>
+      <p class="notice" id="notesSyncStatus"></p>
+      <section class="panel hidden" id="noteFormPanel" aria-label="Editor de nota">
+        <div class="panel-head"><h2 id="noteFormHeading">Nova nota</h2><button class="btn ghost small" id="closeNoteFormBtn" type="button" aria-label="Fechar editor de nota">Fechar</button></div>
+        <form id="noteForm">
+          <input id="noteId" type="hidden" value="">
+          <div class="form-grid">
+            <div class="field full"><label for="noteTitle">Título <span class="muted">(opcional)</span></label><input id="noteTitle" maxlength="160" placeholder="Ex.: ideia para o projeto"></div>
+            <div class="field full"><label for="noteContent">Conteúdo</label><textarea id="noteContent" maxlength="20000" rows="8" required placeholder="Escreva sua nota aqui…"></textarea></div>
+          </div>
+          <div class="actions"><button class="btn primary" type="submit">Salvar nota</button><button class="btn" id="cancelNoteBtn" type="button">Cancelar</button></div>
+        </form>
+      </section>
+      <div class="notes-toolbar"><input id="notesSearch" type="search" aria-label="Buscar nas notas" placeholder="Buscar nas notas…"><span class="muted" id="notesCount">0 notas</span></div>
+      <div id="notesList" class="notes-list" aria-live="polite"></div>
+    </section>
     <section id="settingsPage" class="page-view hidden" aria-label="Configurações">
       <div class="page-heading"><div><p class="eyebrow">PREFERÊNCIAS</p><h2>Configurações</h2></div></div>
       <section class="panel" id="authPanel" aria-label="Conta e sincronização">
@@ -373,7 +402,7 @@
         <p class="hint" style="margin-top:5px">Sua senha é tratada diretamente pelo Supabase; não a envie no chat.</p>
       </section>
       <section class="panel" aria-label="Backup dos dados">
-        <div class="panel-head"><h2>Backup das tarefas</h2></div>
+        <div class="panel-head"><h2>Backup das tarefas e notas</h2></div>
         <p class="muted">Baixe uma cópia JSON para guardar seus dados fora do app.</p>
         <div class="actions"><button class="btn" id="exportBtn" type="button">Exportar backup</button></div>
       </section>
@@ -435,7 +464,7 @@
   </dialog>
   <div id="toast" class="toast hidden" role="status"></div>
   <script src="./config.js?v=1" defer></script>
-  <script src="./app.js?v=21" defer></script>
-  <script>if('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('./sw.js?v=24',{updateViaCache:'none'}).then(registration=>registration.update()).catch(()=>{});</script>
+  <script src="./app.js?v=22" defer></script>
+  <script>if('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('./sw.js?v=25',{updateViaCache:'none'}).then(registration=>registration.update()).catch(()=>{});</script>
 </body>
 </html>

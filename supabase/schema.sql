@@ -37,17 +37,35 @@ create table if not exists public.nmm_task_links (
   created_at timestamptz not null default now()
 );
 
+create table if not exists public.nmm_notes (
+  id text primary key,
+  owner_id uuid not null references auth.users(id) on delete cascade,
+  title text not null default '',
+  content text not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  deleted_at timestamptz
+);
+
 create index if not exists nmm_tasks_owner_status_idx on public.nmm_tasks(owner_id, status);
+create index if not exists nmm_notes_owner_updated_idx on public.nmm_notes(owner_id, updated_at desc);
 create index if not exists nmm_comments_task_created_idx on public.nmm_task_comments(task_id, created_at);
 create index if not exists nmm_links_task_created_idx on public.nmm_task_links(task_id, created_at);
 
 alter table public.nmm_tasks enable row level security;
 alter table public.nmm_task_comments enable row level security;
 alter table public.nmm_task_links enable row level security;
+alter table public.nmm_notes enable row level security;
 
 grant select, insert, update, delete on public.nmm_tasks to authenticated;
 grant select, insert on public.nmm_task_comments to authenticated;
 grant select, insert, delete on public.nmm_task_links to authenticated;
+grant select, insert, update on public.nmm_notes to authenticated;
+
+create policy nmm_notes_owner_all on public.nmm_notes
+  for all to authenticated
+  using (owner_id = (select auth.uid()))
+  with check (owner_id = (select auth.uid()));
 
 create policy nmm_tasks_owner_all on public.nmm_tasks
   for all to authenticated
