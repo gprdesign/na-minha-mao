@@ -249,6 +249,47 @@
       #tasksPage #listView > .task-section > .section-summary h2 { min-width:0; font-size:.98rem; overflow-wrap:anywhere; }
       #tasksPage #listView > .done-section { grid-column:1 / -1; margin-top:8px !important; }
     }
+    body.tasks-screen { height:100vh; height:100dvh; overflow:hidden; }
+    body.tasks-screen .wrap { height:100vh; height:100dvh; display:flex; flex-direction:column; overflow:hidden; padding:8px 18px calc(72px + env(safe-area-inset-bottom,0px)); }
+    body.tasks-screen .app-header { flex:none; margin-bottom:6px; }
+    body.tasks-screen .page-view { min-height:0; }
+    body.tasks-screen #tasksPage { display:flex; flex:1; flex-direction:column; min-height:0; overflow:hidden; }
+    body.tasks-screen #tasksPage .page-heading { flex:none; margin:0 2px 6px; }
+    body.tasks-screen #tasksPage #listView { display:grid; grid-template-columns:minmax(0,1fr); grid-template-rows:minmax(0,1fr) auto auto auto; flex:1; min-height:0; gap:4px; overflow:hidden; }
+    body.tasks-screen #tasksPage #listView > .task-section,
+    body.tasks-screen #tasksPage #listView > .done-section { display:flex; flex-direction:column; min-width:0; min-height:0; margin:0 !important; padding:0; border:0; overflow:visible; }
+    body.tasks-screen #tasksPage #listView > .task-section + .task-section { margin:0; padding:0; border:0; }
+    body.tasks-screen #tasksPage .section-summary { flex:none; min-height:28px; margin:0; gap:5px; font-size:.78rem; }
+    body.tasks-screen #tasksPage .section-summary h2 { min-width:0; font-size:.84rem; line-height:1.1; }
+    body.tasks-screen #tasksPage .section-count { font-size:.72rem; }
+    body.tasks-screen #tasksPage #listView details[open] > .list { display:grid; flex:1; min-height:0; margin:4px 0 0; gap:5px; overflow:visible; }
+    body.tasks-screen #tasksPage .list > .empty { grid-column:1 / -1; grid-row:1 / -1; display:grid; place-items:center; padding:6px; font-size:.75rem; }
+    body.tasks-screen #tasksPage .task { position:relative; min-width:0; min-height:0; padding:31px 5px 4px; border-radius:8px; overflow:visible; }
+    body.tasks-screen #tasksPage .task-top { display:block; min-height:0; }
+    body.tasks-screen #tasksPage .task-drag-handle { position:absolute; left:1px; top:0; width:26px; height:26px; }
+    body.tasks-screen #tasksPage .task-main { width:100%; min-height:0; }
+    body.tasks-screen #tasksPage .task-title { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden; font-size:clamp(.62rem,.8vw,.82rem); line-height:1.12; }
+    body.tasks-screen #tasksPage .task-summary { display:none; }
+    body.tasks-screen #tasksPage .task-menu { position:absolute; right:0; top:-2px; }
+    body.tasks-screen #tasksPage .task-menu > summary { width:30px; height:30px; }
+    body.tasks-screen #tasksPage .task-actions { position:absolute; right:32px; top:0; margin:0; }
+    body.tasks-screen #tasksPage .task-actions .btn { display:grid; place-items:center; width:30px; min-width:30px; height:30px; min-height:30px; padding:0; font-size:0; }
+    body.tasks-screen #tasksPage .task-actions .btn::before { content:"✓"; font-size:.9rem; }
+    @media(orientation:landscape) {
+      body.tasks-screen #tasksPage #listView { grid-template-columns:repeat(3,minmax(0,1fr)); grid-template-rows:minmax(0,1fr) auto; }
+      body.tasks-screen #tasksPage #listView.done-open { grid-template-rows:minmax(0,1fr) minmax(0,1fr); }
+      body.tasks-screen #tasksPage #listView > .done-section { grid-column:1 / -1; }
+    }
+    @media(max-width:650px) {
+      body.tasks-screen .wrap { padding:6px 9px calc(72px + env(safe-area-inset-bottom,0px)); }
+      body.tasks-screen .app-header { margin-bottom:4px; }
+      body.tasks-screen #tasksPage .page-heading { margin-bottom:4px; }
+      body.tasks-screen #tasksPage .task { padding-top:36px; }
+      body.tasks-screen #tasksPage .task-menu > summary { width:34px; height:34px; }
+      body.tasks-screen #tasksPage .task-actions { right:36px; }
+      body.tasks-screen #tasksPage .task-actions .btn { width:34px; min-width:34px; height:34px; min-height:34px; }
+      body.tasks-screen #tasksPage .task-title { font-size:clamp(.58rem,2vw,.72rem); }
+    }
     @media(prefers-reduced-motion:reduce) { .next-task-card,.task-target-highlight,.history-target-highlight { animation:none; } }
   </style>
 </head>
@@ -481,7 +522,7 @@
   </dialog>
   <div id="toast" class="toast hidden" role="status"></div>
   <script src="./config.js?v=1" defer></script>
-  <script src="./app.js?v=24" defer></script>
-  <script>if('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('./sw.js?v=29',{updateViaCache:'none'}).then(registration=>registration.update()).catch(()=>{});</script>
+  <script src="./app.js?v=25" defer></script>
+  <script>if('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('./sw.js?v=30',{updateViaCache:'none'}).then(registration=>registration.update()).catch(()=>{});</script>
 </body>
 </html>

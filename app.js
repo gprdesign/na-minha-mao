@@ -184,6 +184,7 @@
     document.querySelectorAll('input[name="ready"]').forEach(input => input.disabled = false);
     $('formTitle').textContent = 'Nova tarefa';
     $('formPanel').classList.remove('hidden');
+    updateTaskScreenMode();
     setFormMode();
     $('title').focus();
     $('formPanel').scrollIntoView({ behavior:'smooth', block:'start' });
@@ -203,11 +204,12 @@
     document.querySelectorAll('input[name="ready"]').forEach(input => input.disabled = task.status !== 'waiting');
     $('formTitle').textContent = 'Editar tarefa';
     $('formPanel').classList.remove('hidden');
+    updateTaskScreenMode();
     setFormMode();
     $('title').focus();
     $('formPanel').scrollIntoView({ behavior:'smooth', block:'start' });
   }
-  function closeForm() { $('formPanel').classList.add('hidden'); }
+  function closeForm() { $('formPanel').classList.add('hidden'); updateTaskScreenMode(); }
   const ORDER_LIST_IDS = { active:'activeList', review:'reviewList', waiting:'waitingList', done:'doneList' };
   const TASK_ORDER_KEYS = Object.keys(ORDER_LIST_IDS);
   function normalizeTaskOrder(value) {
@@ -431,7 +433,7 @@
       : (task.releaseDate ? (age === 0 ? 'Liberada hoje' : `Liberada há ${age} ${age === 1 ? 'dia' : 'dias'}`) : 'Data de liberação não registrada');
     const releaseDate = task.status !== 'waiting' && task.releaseDate ? `<span class="task-release-date">· ${escapeHTML(formatDate(task.releaseDate))}</span>` : '';
     const taskId = escapeHTML(task.id);
-    const completeButton = completed ? '' : `<button class="btn small good" data-action="complete" data-id="${taskId}" type="button">CONCLUIR</button>`;
+    const completeButton = completed ? '' : `<button class="btn small good" data-action="complete" data-id="${taskId}" type="button" aria-label="Concluir tarefa" title="Concluir tarefa">CONCLUIR</button>`;
     const moveUp = `<button type="button" data-action="move-up" data-id="${taskId}" data-order-list="${listKey}"${position === 0 ? ' disabled' : ''}>↑ Mover para cima</button>`;
     const moveDown = `<button type="button" data-action="move-down" data-id="${taskId}" data-order-list="${listKey}"${position >= itemCount - 1 ? ' disabled' : ''}>↓ Mover para baixo</button>`;
     const moveStatus = completed ? '' : TASK_STATUS_OPTIONS.filter(option => option.id !== task.status).map(option => `<button type="button" data-action="move-status" data-id="${taskId}" data-status="${option.id}">Mover para: ${escapeHTML(option.label)}</button>`).join('');
@@ -678,6 +680,46 @@
       saveNotes(); renderNotes(); showToast('Nota excluída.');
     }
   }
+  function clearTaskGalleryFit() {
+    document.querySelectorAll('#tasksPage .list').forEach(list => {
+      list.style.removeProperty('grid-template-columns');
+      list.style.removeProperty('grid-template-rows');
+      list.style.removeProperty('grid-auto-flow');
+    });
+    $('listView')?.classList.remove('done-open');
+    $('listView')?.style.removeProperty('grid-template-rows');
+  }
+  function fitTaskGallery() {
+    if (!document.body.classList.contains('tasks-screen')) { clearTaskGalleryFit(); return; }
+    const doneSection = $('doneList').closest('details');
+    const listView = $('listView');
+    const doneOpen = Boolean(doneSection?.open);
+    listView.classList.toggle('done-open', doneOpen);
+    if (landscapeTaskQuery.matches) listView.style.gridTemplateRows = doneOpen ? 'minmax(0,1fr) minmax(0,1fr)' : 'minmax(0,1fr) auto';
+    else listView.style.gridTemplateRows = Array.from(listView.children).filter(item => item.matches('details')).map(section => section.open ? 'minmax(0,1fr)' : 'auto').join(' ');
+    document.querySelectorAll('#tasksPage .list').forEach(list => {
+      const section = list.closest('details');
+      if (section && !section.open) { list.style.removeProperty('grid-template-columns'); list.style.removeProperty('grid-template-rows'); list.style.removeProperty('grid-auto-flow'); return; }
+      const count = Array.from(list.children).filter(item => item.classList.contains('task')).length;
+      const height = list.clientHeight;
+      if (!count || height < 1) return;
+      const gap = 5;
+      const rows = Math.max(1, Math.floor((height + gap) / (66 + gap)));
+      const columns = Math.max(1, Math.ceil(count / rows));
+      list.style.gridTemplateColumns = `repeat(${columns},minmax(0,1fr))`;
+      list.style.gridTemplateRows = `repeat(${rows},minmax(0,1fr))`;
+      list.style.gridAutoFlow = 'column';
+    });
+  }
+  function scheduleTaskGalleryFit() {
+    if (document.body.classList.contains('tasks-screen')) requestAnimationFrame(fitTaskGallery);
+  }
+  function updateTaskScreenMode() {
+    const compact = currentPage === 'tasks' && $('formPanel').classList.contains('hidden');
+    document.body.classList.toggle('tasks-screen', compact);
+    if (compact) scheduleTaskGalleryFit();
+    else clearTaskGalleryFit();
+  }
   function applyPageMode() {
     const views = { home:'homePage', tasks:'tasksPage', notes:'notesPage', settings:'settingsPage' };
     Object.entries(views).forEach(([page, id]) => $(id).classList.toggle('hidden', currentPage !== page));
@@ -685,6 +727,7 @@
       if (button.dataset.page === currentPage) button.setAttribute('aria-current', 'page');
       else button.removeAttribute('aria-current');
     });
+    updateTaskScreenMode();
   }
   function setPage(page) {
     if (!['home','tasks','notes','settings'].includes(page)) return;
@@ -700,6 +743,7 @@
     document.querySelectorAll('#listView > .task-section').forEach((section,index) => {
       section.open = landscape || index === 0;
     });
+    scheduleTaskGalleryFit();
   }
   if (landscapeTaskQuery.addEventListener) landscapeTaskQuery.addEventListener('change', updateTaskColumns);
   else landscapeTaskQuery.addListener(updateTaskColumns);
@@ -1538,6 +1582,8 @@
     $(id).addEventListener('dragstart', handleTaskDragStart);
   });
   $('listView').addEventListener('dragover', handleTaskDragOver);
+  $('listView').addEventListener('toggle', scheduleTaskGalleryFit, true);
+  window.addEventListener('resize', scheduleTaskGalleryFit);
   $('listView').addEventListener('drop', handleTaskDrop);
   document.addEventListener('dragend', handleTaskDragEnd);
   $('detailsDialog').addEventListener('click', handleListAction);
