@@ -696,7 +696,7 @@
     const listView = $('listView');
     const doneOpen = Boolean(doneSection?.open);
     listView.classList.toggle('done-open', doneOpen);
-    if (landscapeTaskQuery.matches) listView.style.gridTemplateRows = doneOpen ? 'minmax(0,1fr) minmax(0,1fr)' : 'minmax(0,1fr) auto';
+    if (landscapeTaskQuery.matches) listView.style.gridTemplateRows = doneOpen ? 'auto minmax(0,1fr)' : 'minmax(0,1fr) auto';
     else listView.style.gridTemplateRows = Array.from(listView.children).filter(item => item.matches('details')).map(section => section.open ? 'minmax(0,1fr)' : 'auto').join(' ');
     document.querySelectorAll('#tasksPage .list').forEach(list => {
       const section = list.closest('details');
@@ -726,6 +726,14 @@
     });
   }
 
+  function handleTaskSectionToggle(event) {
+    const section = event.target;
+    if (!section.matches?.('#listView > details')) { scheduleTaskGalleryFit(); return; }
+    const sections = Array.from(document.querySelectorAll('#listView > details'));
+    if (section.open) sections.forEach(other => { if (other !== section) other.open = false; });
+    else if (!sections.some(other => other.open)) section.open = true;
+    scheduleTaskGalleryFit();
+  }
   function scheduleTaskGalleryFit() {
     if (document.body.classList.contains('tasks-screen')) requestAnimationFrame(fitTaskGallery);
   }
@@ -754,10 +762,9 @@
   }
   const landscapeTaskQuery = window.matchMedia('(orientation: landscape)');
   function updateTaskColumns() {
-    const landscape = landscapeTaskQuery.matches;
-    document.querySelectorAll('#listView > .task-section').forEach((section,index) => {
-      section.open = landscape || index === 0;
-    });
+    const sections = Array.from(document.querySelectorAll('#listView > details'));
+    const openSection = sections.find(section => section.open) || sections[0];
+    sections.forEach(section => { section.open = section === openSection; });
     scheduleTaskGalleryFit();
   }
   if (landscapeTaskQuery.addEventListener) landscapeTaskQuery.addEventListener('change', updateTaskColumns);
@@ -1597,7 +1604,7 @@
     $(id).addEventListener('dragstart', handleTaskDragStart);
   });
   $('listView').addEventListener('dragover', handleTaskDragOver);
-  $('listView').addEventListener('toggle', scheduleTaskGalleryFit, true);
+  $('listView').addEventListener('toggle', handleTaskSectionToggle, true);
   window.addEventListener('resize', scheduleTaskGalleryFit);
   $('listView').addEventListener('drop', handleTaskDrop);
   document.addEventListener('dragend', handleTaskDragEnd);
