@@ -131,7 +131,8 @@
     details[open] > .section-summary::after { transform:rotate(180deg); }
     .task-section > .list { margin-top:11px; }
     .list { display:grid; gap:11px; }
-    .task { padding:12px 13px; border-radius:13px; }
+    #tasksPage .list { grid-template-columns:repeat(auto-fit,minmax(min(100%,155px),1fr)); align-items:start; gap:9px; }
+    #tasksPage .task { min-width:0; padding:10px; border-radius:13px; }
     .task-clickable { cursor:pointer; transition:background .16s,border-color .16s,transform .16s; }
     .task-clickable:hover { background:rgba(27,38,60,.98); border-color:rgba(139,175,255,.35); transform:translateY(-1px); }
     .task-clickable:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
@@ -224,6 +225,16 @@
       .app-header .zoom-step { width:28px; min-width:28px; height:30px; }
       .app-header .zoom-control output { min-width:36px; font-size:.72rem; }
       .task-drag-handle { width:22px; }
+    }
+    @media(max-width:650px) {
+      #tasksPage .section-summary { margin:10px 2px 8px; }
+      #tasksPage .task { padding:9px; }
+      #tasksPage .task-top { gap:5px; }
+      #tasksPage .task-menu > summary { min-width:34px; min-height:34px; }
+      #tasksPage .task-title { font-size:.92rem; line-height:1.25; }
+      #tasksPage .task-release { font-size:.76rem; }
+      #tasksPage .task-release-date { font-size:.72rem; }
+      #tasksPage .task-actions .btn { width:100%; }
     }
     @media(orientation:portrait) {
       #tasksPage #listView > .task-section + .task-section { border-top:1px solid var(--line); margin-top:16px; padding-top:12px; }
@@ -470,6 +481,6 @@
   <div id="toast" class="toast hidden" role="status"></div>
   <script src="./config.js?v=1" defer></script>
   <script src="./app.js?v=24" defer></script>
-  <script>if('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('./sw.js?v=27',{updateViaCache:'none'}).then(registration=>registration.update()).catch(()=>{});</script>
+  <script>if('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('./sw.js?v=28',{updateViaCache:'none'}).then(registration=>registration.update()).catch(()=>{});</script>
 </body>
 </html>
