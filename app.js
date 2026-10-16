@@ -1074,7 +1074,10 @@
     try { body = text ? JSON.parse(text) : null; } catch { body = text; }
     if (!response.ok) {
       const message = body?.msg || body?.message || body?.error_description || body?.error || `Erro HTTP ${response.status}`;
-      throw new Error(String(message));
+      const error = new Error(String(message));
+      error.status = response.status;
+      error.code = body?.code || body?.error || null;
+      throw error;
     }
     return body;
   }
@@ -1106,11 +1109,15 @@
     if (!session?.access_token) throw new Error('Entre na sua conta para sincronizar.');
     if (!session.expires_at || Date.now() > session.expires_at - 60000) await refreshSession();
   }
-  async function getCurrentUser() {
+  async function getCurrentUser(canRetry = true) {
     await ensureFreshSession();
     const response = await fetch(`${CLOUD.url}/auth/v1/user`, {
       headers:authHeaders({ Authorization:`Bearer ${session.access_token}` })
     });
+    if (response.status === 401 && canRetry && session?.refresh_token) {
+      await refreshSession();
+      return getCurrentUser(false);
+    }
     return responseBody(response);
   }
   async function updateCurrentUserMetadata(metadata) {
@@ -1465,9 +1472,11 @@
       session.user = await getCurrentUser();
       localStorage.setItem(SESSION_KEY, JSON.stringify(session));
       await loadCloudData();
-    } catch (error) {
-      clearAuth(true);
-      setAuthMessage('Sua sessão expirou ou não pôde ser validada. Entre novamente para sincronizar.', true);
+    } catch {
+      syncStatusText = 'Verificação pendente';
+      renderNotes();
+      updateAuthUI();
+      setAuthMessage('Não consegui verificar a conta agora. Mantive sua sessão e seus dados neste aparelho; tente sincronizar de novo. Se continuar, saia e entre novamente.', true);
     } finally { authBusy = false; updateAuthUI(); }
   }
   async function syncNow() {
