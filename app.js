@@ -17,6 +17,7 @@
   let currentZoom = 1;
   let draggedTaskId = null;
   let draggedOrderList = null;
+  let draggedDropPosition = null;
   let session = consumeAuthCallback() || load(SESSION_KEY, null);
   let syncEnabled = localStorage.getItem(SYNC_KEY) === 'true';
   let releaseTarget = null;
@@ -224,6 +225,13 @@
   function orderListForId(listId) {
     return Object.keys(ORDER_LIST_IDS).find(key => ORDER_LIST_IDS[key] === listId) || null;
   }
+  function insertDraggedTaskId(ids, taskId, targetTaskId, after) {
+    const ordered = ids.map(String).filter(id => id !== String(taskId));
+    const targetIndex = targetTaskId ? ordered.indexOf(String(targetTaskId)) : -1;
+    const insertAt = targetIndex < 0 ? ordered.length : targetIndex + (after ? 1 : 0);
+    ordered.splice(insertAt, 0, String(taskId));
+    return ordered;
+  }
   function moveTaskInList(taskId, listKey, direction) {
     const list = $(ORDER_LIST_IDS[listKey]);
     if (!list) return;
@@ -271,6 +279,7 @@
     if (!card || !listKey) { event.preventDefault(); return; }
     draggedTaskId = card.dataset.task;
     draggedOrderList = listKey;
+    draggedDropPosition = null;
     if (event.dataTransfer) { event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain', draggedTaskId); }
     card.classList.add('is-dragging');
   }
@@ -280,41 +289,54 @@
     const listKey = list ? orderListForId(list.id) : null;
     if (!list || !listKey || (draggedOrderList === 'done') !== (listKey === 'done')) return;
     const card = Array.from(document.querySelectorAll('#listView .task[data-task]')).find(item => item.dataset.task === draggedTaskId);
-    const target = event.target.closest('.task[data-task]');
-    if (!card || target === card) return;
+    if (!card) return;
     event.preventDefault();
+    if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
     document.querySelectorAll('#listView .task.drop-before,#listView .task.drop-after').forEach(item => item.classList.remove('drop-before','drop-after'));
-    if (target && list.contains(target)) {
+    const target = event.target.closest('.task[data-task]');
+    if (target && list.contains(target) && target !== card) {
       const rect = target.getBoundingClientRect();
       const after = event.clientY > rect.top + rect.height / 2;
       target.classList.add(after ? 'drop-after' : 'drop-before');
-      list.insertBefore(card, after ? target.nextSibling : target);
-    } else if (event.target.closest('.section-summary') || event.target.closest('.empty') || list.contains(event.target)) {
-      list.append(card);
+      draggedDropPosition = { listKey, targetTaskId:target.dataset.task, after };
+    } else if (target === card) {
+      draggedDropPosition = { listKey, targetTaskId:draggedTaskId, after:false };
+    } else {
+      draggedDropPosition = { listKey, targetTaskId:null, after:true };
     }
   }
   function handleTaskDrop(event) {
     if (!draggedTaskId) return;
     const list = taskListFromDragEvent(event);
     const listKey = list ? orderListForId(list.id) : null;
-    if (!list || !listKey || (draggedOrderList === 'done') !== (listKey === 'done')) return;
+    const position = draggedDropPosition;
+    if (!list || !listKey || !position || position.listKey !== listKey || (draggedOrderList === 'done') !== (listKey === 'done')) return;
     event.preventDefault();
     const task = tasks.find(item => String(item.id) === String(draggedTaskId));
     const targetStatus = statusForOrderKey(listKey);
-    let statusChanged = false;
-    if (task && !task.completedAt && targetStatus && task.status !== targetStatus) {
+    const sourceList = $(ORDER_LIST_IDS[draggedOrderList]);
+    const targetList = $(ORDER_LIST_IDS[listKey]);
+    const statusChanged = Boolean(task && !task.completedAt && targetStatus && task.status !== targetStatus);
+    if (sourceList && targetList && position.targetTaskId !== draggedTaskId) {
+      const sourceIds = Array.from(sourceList.querySelectorAll('.task[data-task]'), item => item.dataset.task);
+      const targetIds = draggedOrderList === listKey
+        ? sourceIds
+        : Array.from(targetList.querySelectorAll('.task[data-task]'), item => item.dataset.task);
+      if (draggedOrderList === listKey) {
+        saveManualOrder(listKey, insertDraggedTaskId(sourceIds, draggedTaskId, position.targetTaskId, position.after));
+      } else {
+        saveManualOrder(draggedOrderList, sourceIds.filter(id => String(id) !== String(draggedTaskId)));
+        saveManualOrder(listKey, insertDraggedTaskId(targetIds, draggedTaskId, position.targetTaskId, position.after));
+      }
+    }
+    if (statusChanged) {
       const option = TASK_STATUS_OPTIONS.find(item => item.id === targetStatus);
       task.status = targetStatus;
       if (targetStatus !== 'waiting' && !task.releaseDate) task.releaseDate = todayKey();
       recordHistory(task, `Movida manualmente para ${option.label}`);
       save();
-      statusChanged = true;
     }
-    [draggedOrderList,listKey].filter((key,index,array) => key && array.indexOf(key) === index).forEach(key => {
-      const orderedList = $(ORDER_LIST_IDS[key]);
-      if (orderedList) saveManualOrder(key, Array.from(orderedList.querySelectorAll('.task[data-task]'), card => card.dataset.task));
-    });
-    draggedTaskId = null; draggedOrderList = null;
+    draggedTaskId = null; draggedOrderList = null; draggedDropPosition = null;
     render();
     if (statusChanged) {
       const targetSection = $(ORDER_LIST_IDS[listKey])?.closest('details');
@@ -325,7 +347,7 @@
   }
   function handleTaskDragEnd() {
     if (!draggedTaskId) return;
-    draggedTaskId = null; draggedOrderList = null;
+    draggedTaskId = null; draggedOrderList = null; draggedDropPosition = null;
     render();
   }
   function renderTask(task, completed = false, listKey = 'active', position = 0, itemCount = 1) {
