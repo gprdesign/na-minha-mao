@@ -74,6 +74,10 @@
     .history-arrow { color:var(--accent); font-size:1rem; font-weight:750; }
     .notes-toolbar { display:flex; align-items:center; gap:12px; margin:14px 0; }
     .notes-toolbar input { flex:1; min-width:0; max-width:520px; }
+    .recent-searches { display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin:-5px 0 14px; }
+    .recent-search-label { color:var(--muted); font-size:.78rem; margin-right:2px; }
+    .recent-search-btn { max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .recent-search-clear { color:var(--muted); }
     .notes-list { display:grid; gap:12px; }
     .note-card { margin:0; }
     .note-heading h3 { margin:0; font-size:1.04rem; overflow-wrap:anywhere; }
@@ -381,7 +385,8 @@
           <div class="actions"><button class="btn primary" type="submit">Salvar nota</button><button class="btn" id="cancelNoteBtn" type="button">Cancelar</button></div>
         </form>
       </section>
-      <div class="notes-toolbar"><input id="notesSearch" type="search" aria-label="Buscar nas notas" placeholder="Buscar nas notas…"><span class="muted" id="notesCount">0 notas</span></div>
+      <div class="notes-toolbar"><input id="notesSearch" type="search" name="tnm-notes-search" autocomplete="off" autocapitalize="none" spellcheck="false" data-1p-ignore="true" data-lpignore="true" data-bwignore="true" aria-label="Buscar nas notas" aria-controls="notesList" placeholder="Buscar nas notas…"><span class="muted" id="notesCount">0 notas</span></div>
+      <div id="notesRecentSearches" class="recent-searches hidden" aria-label="Buscas recentes"></div>
       <div id="notesList" class="notes-list" aria-live="polite"></div>
     </section>
     <section id="settingsPage" class="page-view hidden" aria-label="Configurações">
@@ -464,7 +469,7 @@
   </dialog>
   <div id="toast" class="toast hidden" role="status"></div>
   <script src="./config.js?v=1" defer></script>
-  <script src="./app.js?v=22" defer></script>
-  <script>if('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('./sw.js?v=25',{updateViaCache:'none'}).then(registration=>registration.update()).catch(()=>{});</script>
+  <script src="./app.js?v=23" defer></script>
+  <script>if('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('./sw.js?v=26',{updateViaCache:'none'}).then(registration=>registration.update()).catch(()=>{});</script>
 </body>
 </html>

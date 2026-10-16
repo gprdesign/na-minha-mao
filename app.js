@@ -2,6 +2,7 @@
   'use strict';
   const STORAGE_KEY = 'naMinhaMao.tasks.v1';
   const NOTES_STORAGE_KEY = 'naMinhaMao.notes.v1';
+  const NOTES_SEARCH_HISTORY_KEY = 'naMinhaMao.notesSearchHistory.v1';
   const TIMER_KEY = 'naMinhaMao.timer.v1';
   const TASK_ORDER_KEY = 'naMinhaMao.taskOrder.v1';
   const TASK_ORDER_UPDATED_KEY = 'naMinhaMao.taskOrderUpdatedAt.v1';
@@ -17,6 +18,9 @@
   let tasks = load(STORAGE_KEY, []);
   let notes = load(NOTES_STORAGE_KEY, []);
   if (!Array.isArray(notes)) notes = [];
+  let notesSearchHistory = load(NOTES_SEARCH_HISTORY_KEY, []);
+  if (!Array.isArray(notesSearchHistory)) notesSearchHistory = [];
+  let notesSearchManuallyEdited = false;
   let remoteNotesEnabled = false;
   let timer = load(TIMER_KEY, null);
   let taskOrder = load(TASK_ORDER_KEY, {});
@@ -569,10 +573,40 @@
       status.textContent = 'Sem login, as notas ficam salvas neste navegador.';
     }
   }
+  function renderRecentSearches() {
+    const container = $('notesRecentSearches');
+    if (!container) return;
+    const history = notesSearchHistory.filter(query => typeof query === 'string' && query.trim()).slice(0,8);
+    container.classList.toggle('hidden', !history.length);
+    if (!history.length) { container.innerHTML = ''; return; }
+    container.innerHTML = `<span class="recent-search-label">Buscas recentes</span>${history.map(query => `<button class="btn ghost small recent-search-btn" type="button" data-search-query="${escapeHTML(query)}">${escapeHTML(query)}</button>`).join('')}<button class="btn ghost small recent-search-clear" type="button" data-clear-search-history>Limpar</button>`;
+  }
+  function saveRecentSearch() {
+    const query = String($('notesSearch').value || '').trim();
+    if (!notesSearchManuallyEdited || !query) { notesSearchManuallyEdited = false; return; }
+    notesSearchHistory = [query, ...notesSearchHistory.filter(item => item !== query)].slice(0,8);
+    localStorage.setItem(NOTES_SEARCH_HISTORY_KEY, JSON.stringify(notesSearchHistory));
+    notesSearchManuallyEdited = false;
+    renderRecentSearches();
+  }
+  function handleRecentSearchClick(event) {
+    const button = event.target.closest('button[data-search-query],button[data-clear-search-history]');
+    if (!button) return;
+    if (button.hasAttribute('data-clear-search-history')) {
+      notesSearchHistory = [];
+      localStorage.removeItem(NOTES_SEARCH_HISTORY_KEY);
+      renderRecentSearches();
+      return;
+    }
+    $('notesSearch').value = button.dataset.searchQuery || '';
+    notesSearchManuallyEdited = false;
+    renderNotes();
+  }
   function renderNotes() {
     const list = $('notesList');
     if (!list) return;
     updateNotesSyncStatus();
+    renderRecentSearches();
     const query = String($('notesSearch')?.value || '').trim().toLocaleLowerCase('pt-BR');
     const visibleNotes = notes
       .filter(note => note && typeof note === 'object' && !note.deletedAt)
@@ -1473,6 +1507,16 @@
   $('closeNoteFormBtn').addEventListener('click', closeNoteForm);
   $('cancelNoteBtn').addEventListener('click', closeNoteForm);
   $('notesSearch').addEventListener('input', renderNotes);
+  $('notesSearch').addEventListener('keydown', event => {
+    if (event.key === 'Enter') { event.preventDefault(); saveRecentSearch(); }
+    else if (event.key.length === 1 || event.key === 'Backspace' || event.key === 'Delete') notesSearchManuallyEdited = true;
+  });
+  $('notesSearch').addEventListener('beforeinput', event => {
+    const inputType = String(event.inputType || '').toLowerCase();
+    if (inputType && !inputType.includes('replacement') && !inputType.includes('autofill')) notesSearchManuallyEdited = true;
+  });
+  $('notesSearch').addEventListener('change', saveRecentSearch);
+  $('notesRecentSearches').addEventListener('click', handleRecentSearchClick);
   $('notesList').addEventListener('click', handleNotesListClick);
   document.querySelectorAll('input[name="ready"]').forEach(input => input.addEventListener('change', setFormMode));
   $('releaseForm').addEventListener('submit', onReleaseSubmit);
