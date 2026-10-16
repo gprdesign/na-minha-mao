@@ -191,6 +191,17 @@
   }
   function closeForm() { $('formPanel').classList.add('hidden'); }
   const ORDER_LIST_IDS = { active:'activeList', review:'reviewList', waiting:'waitingList', done:'doneList' };
+  const TASK_STATUS_OPTIONS = [
+    { id:'active', orderKey:'active', label:'Na sua mão' },
+    { id:'client_review', orderKey:'review', label:'Com o cliente' },
+    { id:'waiting', orderKey:'waiting', label:'Caixa de entrada' }
+  ];
+  function orderKeyForStatus(status) {
+    return TASK_STATUS_OPTIONS.find(option => option.id === status)?.orderKey || null;
+  }
+  function statusForOrderKey(orderKey) {
+    return TASK_STATUS_OPTIONS.find(option => option.orderKey === orderKey)?.id || null;
+  }
   function applyManualOrder(items, listKey) {
     const saved = Array.isArray(taskOrder[listKey]) ? taskOrder[listKey].map(String) : [];
     if (!saved.length) return items;
@@ -225,6 +236,26 @@
     render();
     showToast('Ordem salva neste navegador.');
   }
+  function moveTaskToStatus(taskId, targetStatus) {
+    const task = tasks.find(item => String(item.id) === String(taskId));
+    const targetOption = TASK_STATUS_OPTIONS.find(option => option.id === targetStatus);
+    if (!task || task.completedAt || !targetOption || task.status === targetStatus) return;
+    task.status = targetStatus;
+    if (targetStatus !== 'waiting' && !task.releaseDate) task.releaseDate = todayKey();
+    recordHistory(task, `Movida manualmente para ${targetOption.label}`);
+    save(); render();
+    const targetSection = $(ORDER_LIST_IDS[targetOption.orderKey])?.closest('details');
+    if (targetSection) targetSection.open = true;
+    if ($('detailsDialog').open && String(detailTaskId) === String(taskId)) renderDetails();
+    showToast(`Movida para ${targetOption.label}.`);
+  }
+  function taskListFromDragEvent(event) {
+    const target = event.target;
+    const directList = target.closest('.list[id]');
+    if (directList && directList.closest('#listView')) return directList;
+    const section = target.closest('#listView > .task-section, #listView > .done-section');
+    return section?.querySelector('.list[id]') || null;
+  }
   function applyPageZoom(value) {
     currentZoom = Math.min(1.5, Math.max(.8, Math.round(Number(value) * 10) / 10));
     document.documentElement.style.zoom = String(currentZoom);
@@ -244,27 +275,53 @@
     card.classList.add('is-dragging');
   }
   function handleTaskDragOver(event) {
-    if (!draggedTaskId || orderListForId(event.currentTarget.id) !== draggedOrderList) return;
-    const list = event.currentTarget;
-    const card = Array.from(list.querySelectorAll('.task[data-task]')).find(item => item.dataset.task === draggedTaskId);
+    if (!draggedTaskId) return;
+    const list = taskListFromDragEvent(event);
+    const listKey = list ? orderListForId(list.id) : null;
+    if (!list || !listKey || (draggedOrderList === 'done') !== (listKey === 'done')) return;
+    const card = Array.from(document.querySelectorAll('#listView .task[data-task]')).find(item => item.dataset.task === draggedTaskId);
     const target = event.target.closest('.task[data-task]');
-    if (!card || !target || target === card) return;
+    if (!card || target === card) return;
     event.preventDefault();
-    list.querySelectorAll('.task.drop-before,.task.drop-after').forEach(item => item.classList.remove('drop-before','drop-after'));
-    const after = event.clientY > target.getBoundingClientRect().top + target.getBoundingClientRect().height / 2;
-    target.classList.add(after ? 'drop-after' : 'drop-before');
-    list.insertBefore(card, after ? target.nextSibling : target);
+    document.querySelectorAll('#listView .task.drop-before,#listView .task.drop-after').forEach(item => item.classList.remove('drop-before','drop-after'));
+    if (target && list.contains(target)) {
+      const rect = target.getBoundingClientRect();
+      const after = event.clientY > rect.top + rect.height / 2;
+      target.classList.add(after ? 'drop-after' : 'drop-before');
+      list.insertBefore(card, after ? target.nextSibling : target);
+    } else if (event.target.closest('.section-summary') || event.target.closest('.empty') || list.contains(event.target)) {
+      list.append(card);
+    }
   }
   function handleTaskDrop(event) {
-    const list = event.currentTarget;
-    const listKey = orderListForId(list.id);
-    if (!draggedTaskId || listKey !== draggedOrderList) return;
+    if (!draggedTaskId) return;
+    const list = taskListFromDragEvent(event);
+    const listKey = list ? orderListForId(list.id) : null;
+    if (!list || !listKey || (draggedOrderList === 'done') !== (listKey === 'done')) return;
     event.preventDefault();
-    const ids = Array.from(list.querySelectorAll('.task[data-task]'), card => card.dataset.task);
-    saveManualOrder(listKey, ids);
+    const task = tasks.find(item => String(item.id) === String(draggedTaskId));
+    const targetStatus = statusForOrderKey(listKey);
+    let statusChanged = false;
+    if (task && !task.completedAt && targetStatus && task.status !== targetStatus) {
+      const option = TASK_STATUS_OPTIONS.find(item => item.id === targetStatus);
+      task.status = targetStatus;
+      if (targetStatus !== 'waiting' && !task.releaseDate) task.releaseDate = todayKey();
+      recordHistory(task, `Movida manualmente para ${option.label}`);
+      save();
+      statusChanged = true;
+    }
+    [draggedOrderList,listKey].filter((key,index,array) => key && array.indexOf(key) === index).forEach(key => {
+      const orderedList = $(ORDER_LIST_IDS[key]);
+      if (orderedList) saveManualOrder(key, Array.from(orderedList.querySelectorAll('.task[data-task]'), card => card.dataset.task));
+    });
     draggedTaskId = null; draggedOrderList = null;
     render();
-    showToast('Ordem salva neste navegador.');
+    if (statusChanged) {
+      const targetSection = $(ORDER_LIST_IDS[listKey])?.closest('details');
+      if (targetSection) targetSection.open = true;
+    }
+    const statusLabel = TASK_STATUS_OPTIONS.find(option => option.id === targetStatus)?.label;
+    showToast(statusChanged ? `Movida para ${statusLabel}.` : 'Ordem salva neste navegador.');
   }
   function handleTaskDragEnd() {
     if (!draggedTaskId) return;
@@ -273,19 +330,20 @@
   }
   function renderTask(task, completed = false, listKey = 'active', position = 0, itemCount = 1) {
     const age = daysSince(task.releaseDate);
-    const releaseLabel = task.releaseDate
-      ? (age === 0 ? 'Liberada hoje' : `Liberada há ${age} ${age === 1 ? 'dia' : 'dias'}`)
-      : (task.status === 'waiting' ? 'Ainda não liberada' : 'Data de liberação não registrada');
-    const releaseDate = task.releaseDate ? `<span class="task-release-date">· ${escapeHTML(formatDate(task.releaseDate))}</span>` : '';
+    const releaseLabel = task.status === 'waiting'
+      ? 'Ainda não liberada'
+      : (task.releaseDate ? (age === 0 ? 'Liberada hoje' : `Liberada há ${age} ${age === 1 ? 'dia' : 'dias'}`) : 'Data de liberação não registrada');
+    const releaseDate = task.status !== 'waiting' && task.releaseDate ? `<span class="task-release-date">· ${escapeHTML(formatDate(task.releaseDate))}</span>` : '';
     const taskId = escapeHTML(task.id);
     const completeButton = completed ? '' : `<button class="btn small good" data-action="complete" data-id="${taskId}" type="button">CONCLUIR</button>`;
     const moveUp = `<button type="button" data-action="move-up" data-id="${taskId}" data-order-list="${listKey}"${position === 0 ? ' disabled' : ''}>↑ Mover para cima</button>`;
     const moveDown = `<button type="button" data-action="move-down" data-id="${taskId}" data-order-list="${listKey}"${position >= itemCount - 1 ? ' disabled' : ''}>↓ Mover para baixo</button>`;
-    const menu = `<details class="task-menu"><summary aria-label="Mais opções" title="Mais opções">⋮</summary><div class="task-menu-popover">${moveUp}${moveDown}<button type="button" data-action="delete" data-id="${taskId}">EXCLUIR</button></div></details>`;
+    const moveStatus = completed ? '' : TASK_STATUS_OPTIONS.filter(option => option.id !== task.status).map(option => `<button type="button" data-action="move-status" data-id="${taskId}" data-status="${option.id}">Mover para: ${escapeHTML(option.label)}</button>`).join('');
+    const menu = `<details class="task-menu"><summary aria-label="Mais opções" title="Mais opções">⋮</summary><div class="task-menu-popover">${moveUp}${moveDown}${moveStatus ? '<div class="task-menu-divider"></div>' + moveStatus : ''}<div class="task-menu-divider"></div><button type="button" data-action="delete" data-id="${taskId}">EXCLUIR</button></div></details>`;
     const dragHandle = `<button class="task-drag-handle" type="button" draggable="true" data-drag-handle aria-label="Arrastar para reordenar" title="Arraste para reordenar">⠿</button>`;
     const actions = completeButton ? `<div class="task-actions">${completeButton}</div>` : '';
     return `<article class="task task-clickable" data-task="${taskId}" data-open-task="${taskId}" tabindex="0" aria-label="Abrir tarefa: ${escapeHTML(task.title)}" aria-keyshortcuts="Enter Space">
-      <div class="task-top">${dragHandle}<div class="task-main"><div class="task-title">${escapeHTML(task.title)}</div><div class="task-summary"><span class="task-release"><strong class="task-release-label${task.releaseDate ? '' : ' is-pending'}">${escapeHTML(releaseLabel)}</strong>${releaseDate}</span></div></div>${menu}</div>
+      <div class="task-top">${dragHandle}<div class="task-main"><div class="task-title">${escapeHTML(task.title)}</div><div class="task-summary"><span class="task-release"><strong class="task-release-label${task.status !== 'waiting' && task.releaseDate ? '' : ' is-pending'}">${escapeHTML(releaseLabel)}</strong>${releaseDate}</span></div></div>${menu}</div>
       ${actions}
     </article>`;
   }
@@ -501,9 +559,9 @@
     renderSubtasks(task);
     const age = daysSince(task.releaseDate);
     const statusLabel = task.completedAt ? 'Concluída' : ({ active:'A bola tá contigo!!', client_review:'Passe perfeito pro cliente! Vamos esperar...', waiting:'Caixa de entrada — ideias, briefing e orçamento' }[task.status] || 'Status não informado');
-    const releaseLabel = task.releaseDate
-      ? `${age === 0 ? 'Liberada hoje' : `Liberada há ${age} ${age === 1 ? 'dia' : 'dias'}`} · ${formatDate(task.releaseDate)}`
-      : (task.status === 'waiting' ? 'Ainda não liberada' : 'Data de liberação não registrada');
+    const releaseLabel = task.status === 'waiting'
+      ? 'Ainda não liberada'
+      : (task.releaseDate ? `${age === 0 ? 'Liberada hoje' : `Liberada há ${age} ${age === 1 ? 'dia' : 'dias'}`} · ${formatDate(task.releaseDate)}` : 'Data de liberação não registrada');
     const metaItems = [
       { label:'Status', value:statusLabel },
       { label:'Liberação', value:releaseLabel },
@@ -706,6 +764,8 @@
         moveTaskInList(taskId, button.dataset.orderList, -1); break;
       case 'move-down':
         moveTaskInList(taskId, button.dataset.orderList, 1); break;
+      case 'move-status':
+        moveTaskToStatus(taskId, button.dataset.status); break;
       case 'delete':
         if (!window.confirm(`Excluir “${task.title}”? Essa ação não pode ser desfeita.`)) return;
         if (timer?.taskId === taskId) timer = null;
@@ -1107,9 +1167,9 @@
     $(id).addEventListener('keydown', handleTaskCardKeydown);
     $(id).addEventListener('click', handleListAction);
     $(id).addEventListener('dragstart', handleTaskDragStart);
-    $(id).addEventListener('dragover', handleTaskDragOver);
-    $(id).addEventListener('drop', handleTaskDrop);
   });
+  $('listView').addEventListener('dragover', handleTaskDragOver);
+  $('listView').addEventListener('drop', handleTaskDrop);
   document.addEventListener('dragend', handleTaskDragEnd);
   $('detailsDialog').addEventListener('click', handleListAction);
   $('detailsDialog').addEventListener('click', event => {

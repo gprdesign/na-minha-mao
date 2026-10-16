@@ -142,7 +142,8 @@
     .task-menu > summary::-webkit-details-marker { display:none; }
     .task-menu > summary::marker { content:""; }
     .task-menu[open] > summary,.task-menu > summary:hover { background:#202b42; color:var(--text); }
-    .task-menu-popover { position:absolute; z-index:5; top:calc(100% + 4px); right:0; min-width:132px; padding:5px; border:1px solid var(--line); border-radius:10px; background:var(--panel2); box-shadow:0 12px 32px #0008; }
+    .task-menu-popover { position:absolute; z-index:5; top:calc(100% + 4px); right:0; min-width:190px; padding:5px; border:1px solid var(--line); border-radius:10px; background:var(--panel2); box-shadow:0 12px 32px #0008; }
+    .task-menu-divider { height:1px; margin:4px 6px; background:var(--line); }
     .task-menu-popover button { width:100%; border:0; border-radius:7px; padding:9px 10px; background:transparent; color:var(--text); text-align:left; font-weight:650; white-space:nowrap; }
     .task-menu-popover button[data-action="delete"] { color:var(--red); font-weight:750; }
     .task-menu-popover button:hover:not(:disabled) { background:#28344d; }
@@ -434,7 +435,7 @@
   </dialog>
   <div id="toast" class="toast hidden" role="status"></div>
   <script src="./config.js?v=1" defer></script>
-  <script src="./app.js?v=17" defer></script>
-  <script>if('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('./sw.js?v=19',{updateViaCache:'none'}).then(registration=>registration.update()).catch(()=>{});</script>
+  <script src="./app.js?v=18" defer></script>
+  <script>if('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('./sw.js?v=20',{updateViaCache:'none'}).then(registration=>registration.update()).catch(()=>{});</script>
 </body>
 </html>
