@@ -77,7 +77,7 @@
     .app-header { align-items:center; }
     .zoom-control { display:flex; align-items:center; gap:3px; padding:3px; flex:none; border:1px solid var(--line); border-radius:12px; background:rgba(20,27,45,.92); }
     .zoom-control output { min-width:42px; color:var(--muted); text-align:center; font-size:.78rem; font-variant-numeric:tabular-nums; }
-    .zoom-step { display:grid; place-items:center; width:32px; min-width:32px; height:32px; padding:0; font-size:1.05rem; font-weight:800; }
+    .zoom-control .zoom-step { display:flex; align-items:center; justify-content:center; width:32px; min-width:32px; height:32px; padding:0; line-height:1; font-size:1.05rem; font-weight:800; text-align:center; }
     .zoom-step:disabled { opacity:.45; cursor:not-allowed; }
     .stats { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin:22px 0; }
     .stat,.panel,.task { background:rgba(20,27,45,.94); border:1px solid var(--line); border-radius:16px; }
@@ -436,6 +436,6 @@
   <div id="toast" class="toast hidden" role="status"></div>
   <script src="./config.js?v=1" defer></script>
   <script src="./app.js?v=21" defer></script>
-  <script>if('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('./sw.js?v=23',{updateViaCache:'none'}).then(registration=>registration.update()).catch(()=>{});</script>
+  <script>if('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('./sw.js?v=24',{updateViaCache:'none'}).then(registration=>registration.update()).catch(()=>{});</script>
 </body>
 </html>
