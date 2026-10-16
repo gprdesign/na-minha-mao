@@ -685,6 +685,7 @@
       list.style.removeProperty('grid-template-columns');
       list.style.removeProperty('grid-template-rows');
       list.style.removeProperty('grid-auto-flow');
+      list.classList.remove('gallery-tight');
     });
     $('listView')?.classList.remove('done-open');
     $('listView')?.style.removeProperty('grid-template-rows');
@@ -699,18 +700,32 @@
     else listView.style.gridTemplateRows = Array.from(listView.children).filter(item => item.matches('details')).map(section => section.open ? 'minmax(0,1fr)' : 'auto').join(' ');
     document.querySelectorAll('#tasksPage .list').forEach(list => {
       const section = list.closest('details');
-      if (section && !section.open) { list.style.removeProperty('grid-template-columns'); list.style.removeProperty('grid-template-rows'); list.style.removeProperty('grid-auto-flow'); return; }
+      if (section && !section.open) {
+        list.style.removeProperty('grid-template-columns');
+        list.style.removeProperty('grid-template-rows');
+        list.style.removeProperty('grid-auto-flow');
+        list.classList.remove('gallery-tight');
+        return;
+      }
       const count = Array.from(list.children).filter(item => item.classList.contains('task')).length;
       const height = list.clientHeight;
-      if (!count || height < 1) return;
+      if (!count || height < 1) {
+        list.style.removeProperty('grid-template-columns');
+        list.style.removeProperty('grid-template-rows');
+        list.style.removeProperty('grid-auto-flow');
+        list.classList.remove('gallery-tight');
+        return;
+      }
       const gap = 5;
-      const rows = Math.max(1, Math.floor((height + gap) / (66 + gap)));
-      const columns = Math.max(1, Math.ceil(count / rows));
-      list.style.gridTemplateColumns = `repeat(${columns},minmax(0,1fr))`;
-      list.style.gridTemplateRows = `repeat(${rows},minmax(0,1fr))`;
-      list.style.gridAutoFlow = 'column';
+      const rows = Math.ceil(count / 2);
+      const rowHeight = Math.max(1, Math.min(82, (height - gap * (rows - 1)) / rows));
+      list.style.gridTemplateColumns = 'repeat(2,minmax(0,1fr))';
+      list.style.gridTemplateRows = `repeat(${rows},${rowHeight}px)`;
+      list.style.gridAutoFlow = 'row';
+      list.classList.toggle('gallery-tight', rowHeight < 70);
     });
   }
+
   function scheduleTaskGalleryFit() {
     if (document.body.classList.contains('tasks-screen')) requestAnimationFrame(fitTaskGallery);
   }

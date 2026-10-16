@@ -131,7 +131,7 @@
     details[open] > .section-summary::after { transform:rotate(180deg); }
     .task-section > .list { margin-top:11px; }
     .list { display:grid; gap:11px; }
-    #tasksPage .list { grid-template-columns:repeat(auto-fill,minmax(min(100%,155px),1fr)); align-items:start; gap:9px; }
+    #tasksPage .list { grid-template-columns:repeat(2,minmax(0,1fr)); align-items:start; gap:9px; }
     #tasksPage .task { min-width:0; padding:10px; border-radius:13px; }
     .task-clickable { cursor:pointer; transition:background .16s,border-color .16s,transform .16s; }
     .task-clickable:hover { background:rgba(27,38,60,.98); border-color:rgba(139,175,255,.35); transform:translateY(-1px); }
@@ -268,13 +268,19 @@
     body.tasks-screen #tasksPage .task-top { display:block; min-height:0; }
     body.tasks-screen #tasksPage .task-drag-handle { position:absolute; left:1px; top:0; width:26px; height:26px; }
     body.tasks-screen #tasksPage .task-main { width:100%; min-height:0; }
-    body.tasks-screen #tasksPage .task-title { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden; font-size:clamp(.62rem,.8vw,.82rem); line-height:1.12; }
+    body.tasks-screen #tasksPage .task-title { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden; font-size:clamp(.78rem,.95vw,1rem); line-height:1.12; }
     body.tasks-screen #tasksPage .task-summary { display:none; }
     body.tasks-screen #tasksPage .task-menu { position:absolute; right:0; top:-2px; }
     body.tasks-screen #tasksPage .task-menu > summary { width:30px; height:30px; }
     body.tasks-screen #tasksPage .task-actions { position:absolute; right:32px; top:0; margin:0; }
     body.tasks-screen #tasksPage .task-actions .btn { display:grid; place-items:center; width:30px; min-width:30px; height:30px; min-height:30px; padding:0; font-size:0; }
     body.tasks-screen #tasksPage .task-actions .btn::before { content:"✓"; font-size:.9rem; }
+    body.tasks-screen #tasksPage .list.gallery-tight .task { padding-top:25px; }
+    body.tasks-screen #tasksPage .list.gallery-tight .task-drag-handle { width:24px; height:24px; }
+    body.tasks-screen #tasksPage .list.gallery-tight .task-menu > summary { width:26px; height:26px; }
+    body.tasks-screen #tasksPage .list.gallery-tight .task-actions { right:28px; }
+    body.tasks-screen #tasksPage .list.gallery-tight .task-actions .btn { width:26px; min-width:26px; height:26px; min-height:26px; }
+    body.tasks-screen #tasksPage .list.gallery-tight .task-title { -webkit-line-clamp:1; font-size:.75rem; }
     @media(orientation:landscape) {
       body.tasks-screen #tasksPage #listView { grid-template-columns:repeat(3,minmax(0,1fr)); grid-template-rows:minmax(0,1fr) auto; }
       body.tasks-screen #tasksPage #listView.done-open { grid-template-rows:minmax(0,1fr) minmax(0,1fr); }
@@ -288,7 +294,12 @@
       body.tasks-screen #tasksPage .task-menu > summary { width:34px; height:34px; }
       body.tasks-screen #tasksPage .task-actions { right:36px; }
       body.tasks-screen #tasksPage .task-actions .btn { width:34px; min-width:34px; height:34px; min-height:34px; }
-      body.tasks-screen #tasksPage .task-title { font-size:clamp(.58rem,2vw,.72rem); }
+      body.tasks-screen #tasksPage .list.gallery-tight .task { padding-top:36px; }
+      body.tasks-screen #tasksPage .list.gallery-tight .task-drag-handle { width:26px; height:26px; }
+      body.tasks-screen #tasksPage .list.gallery-tight .task-menu > summary { width:34px; height:34px; }
+      body.tasks-screen #tasksPage .list.gallery-tight .task-actions { right:36px; }
+      body.tasks-screen #tasksPage .list.gallery-tight .task-actions .btn { width:34px; min-width:34px; height:34px; min-height:34px; }
+      body.tasks-screen #tasksPage .task-title { font-size:.82rem; }
     }
     @media(prefers-reduced-motion:reduce) { .next-task-card,.task-target-highlight,.history-target-highlight { animation:none; } }
   </style>
@@ -522,7 +533,7 @@
   </dialog>
   <div id="toast" class="toast hidden" role="status"></div>
   <script src="./config.js?v=1" defer></script>
-  <script src="./app.js?v=25" defer></script>
-  <script>if('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('./sw.js?v=30',{updateViaCache:'none'}).then(registration=>registration.update()).catch(()=>{});</script>
+  <script src="./app.js?v=26" defer></script>
+  <script>if('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('./sw.js?v=31',{updateViaCache:'none'}).then(registration=>registration.update()).catch(()=>{});</script>
 </body>
 </html>
