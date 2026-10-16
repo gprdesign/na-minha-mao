@@ -718,11 +718,11 @@
       }
       const gap = 5;
       const rows = Math.ceil(count / 2);
-      const rowHeight = Math.max(1, Math.min(82, (height - gap * (rows - 1)) / rows));
+      const rowHeight = Math.max(1, Math.min(94, (height - gap * (rows - 1)) / rows));
       list.style.gridTemplateColumns = 'repeat(2,minmax(0,1fr))';
       list.style.gridTemplateRows = `repeat(${rows},${rowHeight}px)`;
       list.style.gridAutoFlow = 'row';
-      list.classList.toggle('gallery-tight', rowHeight < 70);
+      list.classList.toggle('gallery-tight', rowHeight < 80);
     });
   }
 
