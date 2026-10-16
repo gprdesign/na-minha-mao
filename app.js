@@ -3,6 +3,9 @@
   const STORAGE_KEY = 'naMinhaMao.tasks.v1';
   const TIMER_KEY = 'naMinhaMao.timer.v1';
   const TASK_ORDER_KEY = 'naMinhaMao.taskOrder.v1';
+  const TASK_ORDER_UPDATED_KEY = 'naMinhaMao.taskOrderUpdatedAt.v1';
+  const USER_TASK_ORDER_KEY = 'naMinhaMao_task_order';
+  const USER_TASK_ORDER_UPDATED_KEY = 'naMinhaMao_task_order_updated_at';
   const ZOOM_KEY = 'naMinhaMao.zoom.v1';
   const SESSION_KEY = 'naMinhaMao.supabase.session.v1';
   const SYNC_KEY = 'naMinhaMao.supabase.sync.v1';
@@ -14,6 +17,7 @@
   let timer = load(TIMER_KEY, null);
   let taskOrder = load(TASK_ORDER_KEY, {});
   if (!taskOrder || typeof taskOrder !== 'object' || Array.isArray(taskOrder)) taskOrder = {};
+  let taskOrderUpdatedAt = localStorage.getItem(TASK_ORDER_UPDATED_KEY) || null;
   let currentZoom = 1;
   let draggedTaskId = null;
   let draggedOrderList = null;
@@ -192,6 +196,30 @@
   }
   function closeForm() { $('formPanel').classList.add('hidden'); }
   const ORDER_LIST_IDS = { active:'activeList', review:'reviewList', waiting:'waitingList', done:'doneList' };
+  const TASK_ORDER_KEYS = Object.keys(ORDER_LIST_IDS);
+  function normalizeTaskOrder(value) {
+    const source = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+    return Object.fromEntries(TASK_ORDER_KEYS.map(key => [key, Array.isArray(source[key]) ? source[key].map(String) : []]));
+  }
+  function hasSavedTaskOrder(value = taskOrder) {
+    return Object.values(normalizeTaskOrder(value)).some(ids => ids.length > 0);
+  }
+  function persistTaskOrder(value, updatedAt) {
+    taskOrder = normalizeTaskOrder(value);
+    localStorage.setItem(TASK_ORDER_KEY, JSON.stringify(taskOrder));
+    taskOrderUpdatedAt = updatedAt || null;
+    if (taskOrderUpdatedAt) localStorage.setItem(TASK_ORDER_UPDATED_KEY, taskOrderUpdatedAt);
+    else localStorage.removeItem(TASK_ORDER_UPDATED_KEY);
+  }
+  function nextTaskOrderTimestamp() {
+    const previous = Date.parse(taskOrderUpdatedAt || '') || 0;
+    return new Date(Math.max(Date.now(), previous + 1)).toISOString();
+  }
+  function setRemoteUser(user) {
+    if (!user || typeof user !== 'object') return;
+    session.user = user;
+    localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+  }
   const TASK_STATUS_OPTIONS = [
     { id:'active', orderKey:'active', label:'Na sua mão' },
     { id:'client_review', orderKey:'review', label:'Com o cliente' },
@@ -219,8 +247,35 @@
     return ordered;
   }
   function saveManualOrder(listKey, ids) {
-    taskOrder = { ...taskOrder, [listKey]:ids.map(String) };
-    localStorage.setItem(TASK_ORDER_KEY, JSON.stringify(taskOrder));
+    if (!TASK_ORDER_KEYS.includes(listKey)) return;
+    const nextOrder = normalizeTaskOrder(taskOrder);
+    nextOrder[listKey] = ids.map(String);
+    persistTaskOrder(nextOrder, nextTaskOrderTimestamp());
+    scheduleCloudSync();
+  }
+  function taskIdsInList(listKey) {
+    const list = $(ORDER_LIST_IDS[listKey]);
+    return list ? Array.from(list.querySelectorAll('.task[data-task]'), card => String(card.dataset.task)) : normalizeTaskOrder(taskOrder)[listKey] || [];
+  }
+  function moveTaskOrderEntry(taskId, sourceKey, targetKey) {
+    const idValue = String(taskId);
+    if (!TASK_ORDER_KEYS.includes(sourceKey) || !TASK_ORDER_KEYS.includes(targetKey) || sourceKey === targetKey) return;
+    saveManualOrder(sourceKey, taskIdsInList(sourceKey).filter(id => id !== idValue));
+    saveManualOrder(targetKey, [...taskIdsInList(targetKey).filter(id => id !== idValue), idValue]);
+  }
+  function removeTaskFromOrder(taskId) {
+    const idValue = String(taskId);
+    const nextOrder = normalizeTaskOrder(taskOrder);
+    let changed = false;
+    TASK_ORDER_KEYS.forEach(key => {
+      const nextIds = nextOrder[key].filter(id => id !== idValue);
+      if (nextIds.length !== nextOrder[key].length) changed = true;
+      nextOrder[key] = nextIds;
+    });
+    if (changed) {
+      persistTaskOrder(nextOrder, nextTaskOrderTimestamp());
+      scheduleCloudSync();
+    }
   }
   function orderListForId(listId) {
     return Object.keys(ORDER_LIST_IDS).find(key => ORDER_LIST_IDS[key] === listId) || null;
@@ -248,6 +303,7 @@
     const task = tasks.find(item => String(item.id) === String(taskId));
     const targetOption = TASK_STATUS_OPTIONS.find(option => option.id === targetStatus);
     if (!task || task.completedAt || !targetOption || task.status === targetStatus) return;
+    moveTaskOrderEntry(task.id, orderKeyForStatus(task.status), targetOption.orderKey);
     task.status = targetStatus;
     if (targetStatus !== 'waiting' && !task.releaseDate) task.releaseDate = todayKey();
     recordHistory(task, `Movida manualmente para ${targetOption.label}`);
@@ -770,6 +826,7 @@
           : `Concluir “${task.title}”?`;
         if (!window.confirm(confirmMessage)) return;
         if (timer?.taskId === taskId && timer.startedAt) pauseTimer();
+        moveTaskOrderEntry(task.id, orderKeyForStatus(task.status), 'done');
         const completedAt = new Date().toISOString();
         task.completedAt = completedAt;
         task.completedDate = todayKey();
@@ -779,6 +836,7 @@
         break;
       }
       case 'reopen':
+        moveTaskOrderEntry(task.id, 'done', orderKeyForStatus(task.status));
         task.completedAt = null; task.completedDate = null; recordHistory(task, 'Tarefa reaberta'); save(); render();
         if ($('detailsDialog').open) renderDetails();
         showToast('Tarefa reaberta.'); break;
@@ -791,6 +849,7 @@
       case 'delete':
         if (!window.confirm(`Excluir “${task.title}”? Essa ação não pode ser desfeita.`)) return;
         if (timer?.taskId === taskId) timer = null;
+        removeTaskFromOrder(taskId);
         tasks = tasks.filter(t => t.id !== taskId); save(); render(); showToast('Tarefa excluída.'); break;
     }
   }
@@ -817,6 +876,7 @@
       task.details = String(data.get('details')||'').trim();
       task.estimateMinutes = estimate;
       if (wasWaiting && ready) {
+        moveTaskOrderEntry(task.id, 'waiting', 'active');
         task.status = 'active'; task.releaseDate = todayKey();
         task.dueDate = String(data.get('dueDate')||'') || null;
         task.reward = String(data.get('reward')||'').trim(); task.blocker = '';
@@ -847,6 +907,7 @@
     if (!task) return;
     const estimate = Number($('releaseEstimate').value);
     if (!Number.isFinite(estimate) || estimate < 5) { $('releaseEstimate').focus(); return; }
+    moveTaskOrderEntry(task.id, 'waiting', 'active');
     task.status = 'active'; task.releaseDate = todayKey();
     task.dueDate = $('releaseDue').value || null;
     task.estimateMinutes = estimate; task.reward = $('releaseReward').value.trim(); task.blocker = '';
@@ -910,6 +971,19 @@
     });
     return responseBody(response);
   }
+  async function updateCurrentUserMetadata(metadata) {
+    await ensureFreshSession();
+    const request = () => fetch(`${CLOUD.url}/auth/v1/user`, {
+      method:'PUT', headers:authHeaders({ Authorization:`Bearer ${session.access_token}` }),
+      body:JSON.stringify({ data:metadata })
+    });
+    let response = await request();
+    if (response.status === 401 && session?.refresh_token) {
+      await refreshSession();
+      response = await request();
+    }
+    return responseBody(response);
+  }
   async function cloudRequest(path, options = {}, canRetry = true) {
     await ensureFreshSession();
     const headers = authHeaders({ Authorization:`Bearer ${session.access_token}`, ...(options.headers || {}) });
@@ -964,11 +1038,15 @@
   }
   async function loadCloudData() {
     const localTasks = clone(tasks);
+    const localOrder = normalizeTaskOrder(taskOrder);
+    const localOrderUpdatedAt = taskOrderUpdatedAt;
     const [taskRows, commentRows, linkRows] = await Promise.all([
       cloudRequest('nmm_tasks?select=*'),
       cloudRequest('nmm_task_comments?select=id,task_id,text,source,created_at'),
       cloudRequest('nmm_task_links?select=id,task_id,label,url,created_at')
     ]);
+    const currentUser = await getCurrentUser();
+    setRemoteUser(currentUser);
     remoteTaskIds.clear(); taskRows.forEach(row => remoteTaskIds.add(String(row.id)));
     remoteCommentIds.clear(); commentRows.forEach(row => remoteCommentIds.add(String(row.id)));
     remoteLinkIds.clear(); linkRows.forEach(row => remoteLinkIds.add(String(row.id)));
@@ -1015,11 +1093,58 @@
       remote.subtasks = mergeSubtasks(remote.subtasks, local.subtasks);
     }
     tasks = Array.from(remoteById.values());
+    const userMetadata = currentUser.user_metadata && typeof currentUser.user_metadata === 'object' ? currentUser.user_metadata : {};
+    const remoteOrder = normalizeTaskOrder(userMetadata[USER_TASK_ORDER_KEY]);
+    const remoteOrderUpdatedAt = userMetadata[USER_TASK_ORDER_UPDATED_KEY] || null;
+    const localOrderTime = Date.parse(localOrderUpdatedAt || '') || 0;
+    const remoteOrderTime = Date.parse(remoteOrderUpdatedAt || '') || 0;
+    if (remoteOrderTime > 0 && remoteOrderTime >= localOrderTime) {
+      persistTaskOrder(remoteOrder, remoteOrderUpdatedAt);
+    } else if (localOrderTime > 0) {
+      persistTaskOrder(localOrder, localOrderUpdatedAt);
+    } else if (hasSavedTaskOrder(remoteOrder)) {
+      persistTaskOrder(remoteOrder, remoteOrderUpdatedAt || nextTaskOrderTimestamp());
+    } else if (hasSavedTaskOrder(localOrder)) {
+      persistTaskOrder(localOrder, nextTaskOrderTimestamp());
+    } else {
+      persistTaskOrder({}, null);
+    }
     syncEnabled = true;
     localStorage.setItem(SYNC_KEY, 'true');
     setAuthMessage('Seus dados sincronizam entre aparelhos e ficam privados na sua conta.');
     save(false); render(); updateAuthUI();
     return await syncCloud();
+  }
+  async function syncTaskOrderToCloud() {
+    if (!session?.access_token || !syncEnabled) return;
+    const user = await getCurrentUser();
+    setRemoteUser(user);
+    const metadata = user.user_metadata && typeof user.user_metadata === 'object' ? user.user_metadata : {};
+    const remoteOrder = normalizeTaskOrder(metadata[USER_TASK_ORDER_KEY]);
+    const remoteUpdatedAt = metadata[USER_TASK_ORDER_UPDATED_KEY] || null;
+    const remoteTime = Date.parse(remoteUpdatedAt || '') || 0;
+    let localTime = Date.parse(taskOrderUpdatedAt || '') || 0;
+    if (remoteTime > localTime || (remoteTime > 0 && remoteTime === localTime)) {
+      const changed = JSON.stringify(normalizeTaskOrder(taskOrder)) !== JSON.stringify(remoteOrder);
+      persistTaskOrder(remoteOrder, remoteUpdatedAt);
+      if (changed) render();
+      return;
+    }
+    if (!remoteTime && !localTime) {
+      if (hasSavedTaskOrder(remoteOrder)) persistTaskOrder(remoteOrder, nextTaskOrderTimestamp());
+      else if (hasSavedTaskOrder(taskOrder)) persistTaskOrder(taskOrder, nextTaskOrderTimestamp());
+      else return;
+      localTime = Date.parse(taskOrderUpdatedAt || '') || 0;
+    }
+    if (localTime > remoteTime) {
+      const updatedMetadata = {
+        ...metadata,
+        [USER_TASK_ORDER_KEY]:normalizeTaskOrder(taskOrder),
+        [USER_TASK_ORDER_UPDATED_KEY]:taskOrderUpdatedAt
+      };
+      const updatedUser = await updateCurrentUserMetadata(updatedMetadata);
+      setRemoteUser(updatedUser);
+    }
   }
   async function syncCloud() {
     if (!session?.user?.id || !syncEnabled) return false;
@@ -1068,6 +1193,7 @@
           await cloudRequest('nmm_task_links', { method:'POST', body:JSON.stringify(newLinks) });
           newLinks.forEach(row => remoteLinkIds.add(row.id));
         }
+        await syncTaskOrderToCloud();
         syncStatusText = `Sincronizado · ${new Date().toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' })}`;
         $('authStatus').textContent = syncStatusText;
       } while (syncQueued);
