@@ -78,12 +78,18 @@
     .recent-search-label { color:var(--muted); font-size:.78rem; margin-right:2px; }
     .recent-search-btn { max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     .recent-search-clear { color:var(--muted); }
-    .notes-list { display:grid; gap:12px; }
-    .note-card { margin:0; }
-    .note-heading h3 { margin:0; font-size:1.04rem; overflow-wrap:anywhere; }
-    .note-heading time { display:block; margin-top:4px; }
-    .note-actions { display:flex; align-items:center; justify-content:flex-end; gap:6px; flex:none; flex-wrap:wrap; max-width:100%; }
-    .note-content { margin:0; color:#d1daea; white-space:pre-wrap; overflow-wrap:anywhere; }
+    .notes-list { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); grid-auto-rows:min(320px,calc((100vw - 50px)/2)); align-items:start; align-content:start; gap:10px; width:100%; max-width:654px; padding:0 2px 18px; }
+    .notes-list > .empty { grid-column:1 / -1; }
+    .note-card { display:flex; flex-direction:column; gap:8px; width:100%; height:min(320px,calc((100vw - 50px)/2)); min-width:0; min-height:0; margin:0; padding:10px; overflow:visible; }
+    .note-card-head { display:flex; align-items:flex-start; justify-content:space-between; gap:6px; min-width:0; }
+    .note-heading { min-width:0; flex:1; }
+    .note-heading h3 { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden; margin:0; font-size:.98rem; line-height:1.2; overflow-wrap:anywhere; }
+    .note-heading time { display:block; margin-top:4px; font-size:.7rem; }
+    .note-card:focus-within { position:relative; z-index:50; }
+    .note-card:has(.note-menu[open]) { position:relative; z-index:50; }
+    .note-menu > summary { width:30px; height:30px; }
+    .note-menu .task-menu-popover button[data-note-action="delete"] { color:var(--red); font-weight:750; }
+    .note-content { flex:1; min-height:0; overflow:auto; overscroll-behavior:contain; margin:0; color:#d1daea; white-space:pre-wrap; overflow-wrap:anywhere; font-size:.84rem; line-height:1.35; }
     .history-footer { display:flex; justify-content:center; margin-top:12px; }
     .top-actions { display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; }
     .app-header { align-items:center; }
@@ -357,12 +363,20 @@
       body.tasks-screen #tasksPage .task { height:min(320px,calc((100vw - 30px)/2)); gap:5px; padding:8px; }
       #tasksPage .task-drag-handle { width:21px; height:25px; }
       #tasksPage .task-menu > summary { width:26px; height:28px; }
-      #tasksPage .task-title { font-size:.78rem; line-height:1.18; }
-      body.tasks-screen #tasksPage .task-title { font-size:.78rem; line-height:1.18; }
-      #tasksPage .task-release { font-size:.67rem; }
-      #tasksPage .task-release-date { font-size:.62rem; }
-      #tasksPage .task-actions .btn { min-height:30px; padding:4px 2px; font-size:.68rem; }
-      body.tasks-screen #tasksPage .task-actions .btn { min-height:30px; padding:4px 2px; font-size:.68rem; }
+      #tasksPage .task-title { font-size:.9rem; line-height:1.2; }
+      body.tasks-screen #tasksPage .task-title { font-size:.9rem; line-height:1.2; }
+      #tasksPage .task-release { font-size:.72rem; }
+      #tasksPage .task-release-date { font-size:.68rem; }
+      body.tasks-screen #tasksPage .task-release { font-size:.74rem; }
+      body.tasks-screen #tasksPage .task-release-date { font-size:.68rem; }
+      #tasksPage .task-actions .btn { min-height:30px; padding:4px 2px; font-size:.74rem; }
+      body.tasks-screen #tasksPage .task-actions .btn { min-height:30px; padding:4px 2px; font-size:.74rem; }
+      #notesPage .notes-list { grid-auto-rows:min(320px,calc((100vw - 38px)/2)); gap:8px; padding-bottom:14px; }
+      #notesPage .note-card { height:min(320px,calc((100vw - 38px)/2)); gap:5px; padding:8px; }
+      #notesPage .note-heading h3 { font-size:.9rem; }
+      #notesPage .note-heading time { font-size:.66rem; }
+      #notesPage .note-menu > summary { width:28px; height:28px; }
+      #notesPage .note-content { font-size:.8rem; }
     }
     @media(prefers-reduced-motion:reduce) { .next-task-card,.task-target-highlight,.history-target-highlight { animation:none; } }
   </style>
@@ -599,7 +613,7 @@
   </dialog>
   <div id="toast" class="toast hidden" role="status"></div>
   <script src="./config.js?v=1" defer></script>
-  <script src="./app.js?v=31" defer></script>
-  <script>if('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('./sw.js?v=39',{updateViaCache:'none'}).then(registration=>registration.update()).catch(()=>{});</script>
+  <script src="./app.js?v=32" defer></script>
+  <script>if('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('./sw.js?v=40',{updateViaCache:'none'}).then(registration=>registration.update()).catch(()=>{});</script>
 </body>
 </html>
