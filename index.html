@@ -256,12 +256,15 @@
       #tasksPage #listView > .done-section { grid-column:1 / -1; margin-top:8px !important; }
     }
     body.tasks-screen { height:100vh; height:100dvh; overflow:hidden; }
-    body.tasks-screen .wrap { height:100vh; height:100dvh; display:flex; flex-direction:column; overflow:hidden; padding:8px 18px calc(72px + env(safe-area-inset-bottom,0px)); }
+    body.tasks-screen .wrap { height:100vh; height:100dvh; display:flex; flex-direction:column; overflow:hidden; padding:8px 18px calc(192px + env(safe-area-inset-bottom,0px)); }
+    body.tasks-screen.task-area-inbox .wrap { padding-bottom:calc(132px + env(safe-area-inset-bottom,0px)); }
+    body.page-tasks:not(.tasks-screen) .wrap { padding-bottom:190px; }
+    body.page-tasks.task-area-inbox:not(.tasks-screen) .wrap { padding-bottom:130px; }
     body.tasks-screen .app-header { flex:none; margin-bottom:6px; }
     body.tasks-screen .page-view { min-height:0; }
     body.tasks-screen #tasksPage { display:flex; flex:1; flex-direction:column; min-height:0; overflow:hidden; }
     body.tasks-screen #tasksPage .page-heading { flex:none; margin:0 2px 6px; }
-    body.tasks-screen #tasksPage #listView { display:grid; grid-template-columns:minmax(0,1fr); grid-template-rows:minmax(0,1fr) auto auto auto; flex:1; min-height:0; gap:4px; overflow:hidden; }
+    body.tasks-screen #tasksPage #listView { display:flex; flex:1; flex-direction:column; min-height:0; gap:6px; overflow:hidden; }
     body.tasks-screen #tasksPage #listView > .task-section,
     body.tasks-screen #tasksPage #listView > .done-section { display:flex; flex-direction:column; min-width:0; min-height:0; margin:0 !important; padding:0; border:0; overflow:visible; }
     body.tasks-screen #tasksPage #listView > .task-section + .task-section { margin:0; padding:0; border:0; }
@@ -298,7 +301,10 @@
       body.tasks-screen #tasksPage #listView > .done-section { grid-column:1 / -1; }
     }
     @media(max-width:650px) {
-      body.tasks-screen .wrap { padding:6px 9px calc(72px + env(safe-area-inset-bottom,0px)); }
+      body.tasks-screen .wrap { padding:6px 9px calc(192px + env(safe-area-inset-bottom,0px)); }
+      body.tasks-screen.task-area-inbox .wrap { padding-bottom:calc(132px + env(safe-area-inset-bottom,0px)); }
+      body.page-tasks:not(.tasks-screen) .wrap { padding-bottom:190px; }
+      body.page-tasks.task-area-inbox:not(.tasks-screen) .wrap { padding-bottom:130px; }
       body.tasks-screen .app-header { margin-bottom:4px; }
       body.tasks-screen #tasksPage .page-heading { margin-bottom:4px; }
       body.tasks-screen #tasksPage .task { padding-top:36px; }
@@ -314,6 +320,7 @@
       body.tasks-screen #tasksPage .list.gallery-tight .task-title { font-size:.70rem; }
     }
     .task-subnav { position:fixed; z-index:21; left:50%; bottom:calc(70px + env(safe-area-inset-bottom,0px)); transform:translateX(-50%); width:min(760px,calc(100% - 28px)); display:flex; gap:4px; padding:5px; border:1px solid #394663; border-radius:14px; background:#111827ee; backdrop-filter:blur(14px); box-shadow:0 10px 28px #0008; }
+    .task-category-nav { bottom:calc(126px + env(safe-area-inset-bottom,0px)); z-index:22; }
     .task-tab { flex:1; min-width:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; padding:6px 3px; border:0; border-radius:9px; background:transparent; color:var(--muted); font:inherit; font-size:.78rem; font-weight:700; line-height:1.1; }
     .task-tab:hover { background:#202b42; color:var(--text); }
     .task-tab[aria-pressed="true"] { background:#202b42; color:var(--text); box-shadow:inset 0 0 0 1px #8bafff66; }
@@ -341,10 +348,11 @@
     #tasksPage .task-actions .btn { display:block; width:100%; min-width:0; height:auto; min-height:32px; padding:5px 4px; font-size:.74rem; }
     #tasksPage .task-actions .btn::before { content:none; }
     #tasksPage .task-section .list { overflow-y:auto; overscroll-behavior:contain; }
-    body.tasks-screen .wrap { padding-bottom:calc(140px + env(safe-area-inset-bottom,0px)); }
+    body.tasks-screen .wrap { padding-bottom:calc(192px + env(safe-area-inset-bottom,0px)); }
+    body.tasks-screen.task-area-inbox .wrap { padding-bottom:calc(132px + env(safe-area-inset-bottom,0px)); }
     body.tasks-screen #tasksPage #listView { display:flex; flex:1; min-height:0; overflow:hidden; }
     body.tasks-screen #tasksPage .task-section.is-active { display:flex; flex:1; flex-direction:column; min-height:0; }
-    body.tasks-screen #tasksPage .task-section .list { grid-auto-rows:min(320px,calc((100vw - 50px)/2)); flex:1; min-height:0; overflow-y:auto; }
+    body.tasks-screen #tasksPage #taskList { grid-auto-rows:min(320px,calc((100vw - 50px)/2)); flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain; }
     body.tasks-screen #tasksPage .task { height:min(320px,calc((100vw - 50px)/2)); padding:10px; gap:8px; }
     body.tasks-screen #tasksPage .task-top { display:flex; }
     body.tasks-screen #tasksPage .task-title { -webkit-line-clamp:3; min-height:2.4em; font-size:clamp(.78rem,1.7vw,1rem); line-height:1.2; }
@@ -355,8 +363,11 @@
     body.tasks-screen #tasksPage .task-actions .btn::before { content:none; }
     @media(max-width:650px) {
       .task-subnav { bottom:calc(82px + env(safe-area-inset-bottom,0px)); width:calc(100% - 24px); gap:3px; padding:4px; }
+      .task-category-nav { bottom:calc(136px + env(safe-area-inset-bottom,0px)); }
       .task-tab { min-height:43px; padding:5px 2px; font-size:.68rem; }
       .task-tab-count { font-size:.64rem; }
+      .task-category-nav { width:calc(100% - 24px); gap:2px; padding:4px; }
+      .task-category-nav .task-tab { font-size:.64rem; }
       #tasksPage .list { grid-auto-rows:min(320px,calc((100vw - 38px)/2)); gap:8px; padding-bottom:14px; }
       body.tasks-screen #tasksPage .task-section .list { grid-auto-rows:min(320px,calc((100vw - 30px)/2)); }
       #tasksPage .task { height:min(320px,calc((100vw - 38px)/2)); gap:5px; padding:8px; }
@@ -493,26 +504,24 @@
       </form>
     </section>
 
-    <nav class="task-subnav" id="taskSubnav" aria-label="Categorias das tarefas">
-      <button class="task-tab" type="button" data-task-tab="active" aria-pressed="true"><span class="task-tab-label">Liberado</span><span class="task-tab-count" id="activeListCount">0</span></button>
-      <button class="task-tab" type="button" data-task-tab="review" aria-pressed="false"><span class="task-tab-label">Aprovando</span><span class="task-tab-count" id="reviewListCount">0</span></button>
-      <button class="task-tab" type="button" data-task-tab="waiting" aria-pressed="false"><span class="task-tab-label">Entrada</span><span class="task-tab-count" id="waitingListCount">0</span></button>
-      <button class="task-tab" type="button" data-task-tab="done" aria-pressed="false"><span class="task-tab-label">Concluído</span><span class="task-tab-count" id="doneCount">0</span></button>
+    <nav class="task-subnav task-area-nav" id="taskAreaNav" aria-label="Áreas das tarefas">
+      <button class="task-tab" type="button" data-task-area="life" aria-pressed="false"><span class="task-tab-label">VIDA</span><span class="task-tab-count" id="lifeAreaCount">0</span></button>
+      <button class="task-tab" type="button" data-task-area="work" aria-pressed="false"><span class="task-tab-label">TRABALHO</span><span class="task-tab-count" id="workAreaCount">0</span></button>
+      <button class="task-tab" type="button" data-task-area="inbox" aria-pressed="true"><span class="task-tab-label">ENTRADA</span><span class="task-tab-count" id="inboxAreaCount">0</span></button>
+    </nav>
+    <nav class="task-subnav task-category-nav hidden" id="taskCategoryNav" aria-label="Categorias da área">
+      <button class="task-tab" type="button" data-task-area="life" data-task-category="finance" aria-pressed="false"><span class="task-tab-label">FINANÇAS</span><span class="task-tab-count" id="lifeFinanceCount">0</span></button>
+      <button class="task-tab" type="button" data-task-area="life" data-task-category="home" aria-pressed="false"><span class="task-tab-label">CASA</span><span class="task-tab-count" id="lifeHomeCount">0</span></button>
+      <button class="task-tab" type="button" data-task-area="life" data-task-category="personal" aria-pressed="false"><span class="task-tab-label">PESSOAL</span><span class="task-tab-count" id="lifePersonalCount">0</span></button>
+      <button class="task-tab" type="button" data-task-area="life" data-task-category="done" aria-pressed="false"><span class="task-tab-label">CONCLUÍDO</span><span class="task-tab-count" id="lifeDoneCount">0</span></button>
+      <button class="task-tab" type="button" data-task-area="work" data-task-category="released" aria-pressed="false"><span class="task-tab-label">LIBERADO</span><span class="task-tab-count" id="workReleasedCount">0</span></button>
+      <button class="task-tab" type="button" data-task-area="work" data-task-category="quote" aria-pressed="false"><span class="task-tab-label">ENVIAR ORÇ</span><span class="task-tab-count" id="workQuoteCount">0</span></button>
+      <button class="task-tab" type="button" data-task-area="work" data-task-category="approval" aria-pressed="false"><span class="task-tab-label">APROVAÇÃO</span><span class="task-tab-count" id="workApprovalCount">0</span></button>
+      <button class="task-tab" type="button" data-task-area="work" data-task-category="done" aria-pressed="false"><span class="task-tab-label">CONCLUÍDO</span><span class="task-tab-count" id="workDoneCount">0</span></button>
     </nav>
     <div id="listView" class="task-pages">
-      <section class="task-section is-active" data-task-section="active" aria-label="Liberado">
-        <section class="list" id="activeList" aria-live="polite"></section>
-      </section>
-      <section class="task-section hidden" data-task-section="review" aria-label="Aprovando">
-        <section class="list" id="reviewList" aria-live="polite"></section>
-      </section>
-      <section class="task-section hidden" data-task-section="waiting" aria-label="Entrada">
-        <section class="list" id="waitingList" aria-live="polite"></section>
-      </section>
-      <section class="task-section done-section hidden" data-task-section="done" aria-label="Concluído">
-        <div class="done-toolbar"><button class="btn warn small" id="clearCompletedBtn" type="button" aria-label="Limpar todas as tarefas concluídas" disabled>Limpar tudo</button></div>
-        <section class="list" id="doneList" aria-live="polite"></section>
-      </section>
+      <div class="done-toolbar hidden" id="taskListToolbar"><button class="btn warn small" id="clearCompletedBtn" type="button" aria-label="Limpar todas as tarefas concluídas desta área" disabled>Limpar tudo</button></div>
+      <section class="list" id="taskList" aria-live="polite"></section>
     </div>
     </section>
     <section id="notesPage" class="page-view hidden" aria-label="Notas">
@@ -571,6 +580,18 @@
       <div class="actions"><button class="btn primary" type="submit">Marcar como liberada</button><button class="btn" type="button" id="cancelReleaseBtn">Cancelar</button></div>
     </form>
   </dialog>
+  <dialog id="categoryDialog">
+    <form id="categoryForm">
+      <h2>Organizar tarefa</h2>
+      <p class="muted" id="categoryTaskName" style="margin:-6px 0 15px"></p>
+      <div class="field"><label for="categoryDestination">Mover para</label><select id="categoryDestination" required>
+        <optgroup label="ENTRADA"><option value="inbox">Lista genérica</option></optgroup>
+        <optgroup label="VIDA"><option value="life:finance">Finanças</option><option value="life:home">Casa</option><option value="life:personal">Pessoal</option></optgroup>
+        <optgroup label="TRABALHO"><option value="work:released">Liberado</option><option value="work:quote">Enviar orçamento</option><option value="work:approval">Aprovação</option></optgroup>
+      </select></div>
+      <div class="actions"><button class="btn primary" type="submit">Salvar destino</button><button class="btn" type="button" id="cancelCategoryBtn">Cancelar</button></div>
+    </form>
+  </dialog>
   <dialog id="detailsDialog">
     <div class="panel-head"><h2 id="detailTitle">Detalhes</h2><button class="btn ghost small" id="closeDetailsBtn" type="button">Fechar</button></div>
     <div id="detailMeta" class="detail-meta"></div>
@@ -613,7 +634,7 @@
   </dialog>
   <div id="toast" class="toast hidden" role="status"></div>
   <script src="./config.js?v=1" defer></script>
-  <script src="./app.js?v=32" defer></script>
-  <script>if('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('./sw.js?v=40',{updateViaCache:'none'}).then(registration=>registration.update()).catch(()=>{});</script>
+  <script src="./app.js?v=33" defer></script>
+  <script>if('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('./sw.js?v=41',{updateViaCache:'none'}).then(registration=>registration.update()).catch(()=>{});</script>
 </body>
 </html>

@@ -8,6 +8,11 @@
   const TASK_ORDER_UPDATED_KEY = 'naMinhaMao.taskOrderUpdatedAt.v1';
   const USER_TASK_ORDER_KEY = 'naMinhaMao_task_order';
   const USER_TASK_ORDER_UPDATED_KEY = 'naMinhaMao_task_order_updated_at';
+  const USER_TASK_CATEGORIES_KEY = 'naMinhaMao_task_categories';
+  const TASK_AREA_STORAGE_KEY = 'naMinhaMao.taskArea.v1';
+  const TASK_CATEGORY_STORAGE_KEY = 'naMinhaMao.taskCategory.v1';
+  const TASK_AREA_CATEGORIES = { inbox:[], life:['finance','home','personal'], work:['released','quote','approval'] };
+  const TASK_VIEW_ORDER_KEYS = ['inbox','life_finance','life_home','life_personal','life_done','work_released','work_quote','work_approval','work_done'];
   const ZOOM_KEY = 'naMinhaMao.zoom.v1';
   const SESSION_KEY = 'naMinhaMao.supabase.session.v1';
   const SYNC_KEY = 'naMinhaMao.supabase.sync.v1';
@@ -16,6 +21,10 @@
   const CLOUD_READY = Boolean(CLOUD.url && CLOUD.publishableKey);
   const $ = (id) => document.getElementById(id);
   let tasks = load(STORAGE_KEY, []);
+  if (!Array.isArray(tasks)) tasks = [];
+  const tasksBeforeCategoryMigration = JSON.stringify(tasks);
+  tasks = tasks.map(normalizeTaskClassification);
+  if (JSON.stringify(tasks) !== tasksBeforeCategoryMigration) localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
   let notes = load(NOTES_STORAGE_KEY, []);
   if (!Array.isArray(notes)) notes = [];
   let notesSearchHistory = load(NOTES_SEARCH_HISTORY_KEY, []);
@@ -33,12 +42,16 @@
   let session = consumeAuthCallback() || load(SESSION_KEY, null);
   let syncEnabled = localStorage.getItem(SYNC_KEY) === 'true';
   let releaseTarget = null;
+  let categoryTaskId = null;
   let detailTaskId = null;
   let historyExpanded = false;
   localStorage.removeItem('naMinhaMao.view');
   const storedPage = localStorage.getItem('naMinhaMao.page');
   let currentPage = ['home','tasks','notes','settings'].includes(storedPage) ? storedPage : 'home';
-  let currentTaskTab = 'active';
+  let currentTaskArea = ['life','work','inbox'].includes(localStorage.getItem(TASK_AREA_STORAGE_KEY)) ? localStorage.getItem(TASK_AREA_STORAGE_KEY) : 'inbox';
+  let currentTaskCategory = localStorage.getItem(TASK_CATEGORY_STORAGE_KEY) || (currentTaskArea === 'life' ? 'finance' : currentTaskArea === 'work' ? 'released' : '');
+  if (currentTaskArea === 'inbox') currentTaskCategory = '';
+  else if (currentTaskCategory !== 'done' && !TASK_AREA_CATEGORIES[currentTaskArea].includes(currentTaskCategory)) currentTaskCategory = TASK_AREA_CATEGORIES[currentTaskArea][0];
   let toastTimeout;
   let syncTimeout;
   let syncInFlight = false;
@@ -56,6 +69,44 @@
     catch { return fallback; }
   }
   function clone(value) { return JSON.parse(JSON.stringify(value)); }
+  function normalizeTaskClassification(task) {
+    if (!task || typeof task !== 'object') return task;
+    const hadArea = ['inbox','life','work'].includes(task.area);
+    const area = hadArea ? task.area : 'inbox';
+    const options = TASK_AREA_CATEGORIES[area] || [];
+    const category = area === 'inbox' ? null : (options.includes(task.category) ? task.category : options[0]);
+    return { ...task, area, category, categoryUpdatedAt:task.categoryUpdatedAt || null };
+  }
+  function taskCategoryKey(task) {
+    const normalized = normalizeTaskClassification(task);
+    if (normalized.area === 'inbox') return 'inbox';
+    if (normalized.completedAt) return `${normalized.area}_done`;
+    return `${normalized.area}_${normalized.category}`;
+  }
+  function taskCategoryRecord(task) {
+    const normalized = normalizeTaskClassification(task);
+    return { area:normalized.area, category:normalized.category, updatedAt:normalized.categoryUpdatedAt || new Date().toISOString() };
+  }
+  function validTaskCategoryRecord(value) {
+    if (!value || typeof value !== 'object' || !['inbox','life','work'].includes(value.area)) return null;
+    const categories = TASK_AREA_CATEGORIES[value.area] || [];
+    const category = value.area === 'inbox' ? null : (categories.includes(value.category) ? value.category : categories[0]);
+    return { area:value.area, category, updatedAt:String(value.updatedAt || '') };
+  }
+  function normalizeTaskCategoryMap(value) {
+    const source = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+    return Object.fromEntries(Object.entries(source).map(([taskId,record]) => [String(taskId),validTaskCategoryRecord(record)]).filter(([,record]) => Boolean(record)));
+  }
+  function applyTaskCategoryRecord(task, record) {
+    const valid = validTaskCategoryRecord(record);
+    if (!task || !valid) return false;
+    task.area = valid.area; task.category = valid.category; task.categoryUpdatedAt = valid.updatedAt || null;
+    return true;
+  }
+  function taskCategoryRevision(task) {
+    const value = Date.parse(task?.categoryUpdatedAt || '');
+    return Number.isFinite(value) ? value : 0;
+  }
   function consumeAuthCallback() {
     const hash = location.hash.startsWith('#') ? new URLSearchParams(location.hash.slice(1)) : null;
     const accessToken = hash?.get('access_token');
@@ -212,10 +263,20 @@
   }
   function closeForm() { $('formPanel').classList.add('hidden'); updateTaskScreenMode(); }
   const ORDER_LIST_IDS = { active:'activeList', review:'reviewList', waiting:'waitingList', done:'doneList' };
-  const TASK_ORDER_KEYS = Object.keys(ORDER_LIST_IDS);
+  const LEGACY_TASK_ORDER_KEYS = Object.keys(ORDER_LIST_IDS);
+  const TASK_ORDER_KEYS = [...new Set([...LEGACY_TASK_ORDER_KEYS, ...TASK_VIEW_ORDER_KEYS])];
   function normalizeTaskOrder(value) {
     const source = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
     return Object.fromEntries(TASK_ORDER_KEYS.map(key => [key, Array.isArray(source[key]) ? source[key].map(String) : []]));
+  }
+  taskOrder = normalizeTaskOrder(taskOrder);
+  if (!taskOrder.inbox.length) {
+    const inboxIds = tasks.filter(task => task?.area === 'inbox').map(task => String(task.id));
+    const legacyIds = LEGACY_TASK_ORDER_KEYS.flatMap(key => taskOrder[key]);
+    const inboxSet = new Set(inboxIds);
+    taskOrder.inbox = [...new Set([...legacyIds, ...inboxIds])].filter(taskId => inboxSet.has(taskId));
+    if (inboxIds.length) persistTaskOrder(taskOrder, nextTaskOrderTimestamp());
+    else localStorage.setItem(TASK_ORDER_KEY, JSON.stringify(taskOrder));
   }
   function hasSavedTaskOrder(value = taskOrder) {
     return Object.values(normalizeTaskOrder(value)).some(ids => ids.length > 0);
@@ -275,8 +336,9 @@
       : 'Ordem salva neste navegador. Entre na conta para sincronizar.';
   }
   function taskIdsInList(listKey) {
-    const list = $(ORDER_LIST_IDS[listKey]);
-    return list ? Array.from(list.querySelectorAll('.task[data-task]'), card => String(card.dataset.task)) : normalizeTaskOrder(taskOrder)[listKey] || [];
+    const list = $('taskList');
+    if (TASK_VIEW_ORDER_KEYS.includes(listKey) && list?.dataset.orderKey === listKey) return Array.from(list.querySelectorAll('.task[data-task]'), card => String(card.dataset.task));
+    return normalizeTaskOrder(taskOrder)[listKey] || [];
   }
   function moveTaskOrderEntry(taskId, sourceKey, targetKey) {
     const idValue = String(taskId);
@@ -299,6 +361,7 @@
     }
   }
   function orderListForId(listId) {
+    if (listId === 'taskList') return $('taskList')?.dataset.orderKey || null;
     return Object.keys(ORDER_LIST_IDS).find(key => ORDER_LIST_IDS[key] === listId) || null;
   }
   function insertDraggedTaskId(ids, taskId, targetTaskId, after) {
@@ -309,8 +372,8 @@
     return ordered;
   }
   function moveTaskInList(taskId, listKey, direction) {
-    const list = $(ORDER_LIST_IDS[listKey]);
-    if (!list) return;
+    const list = $('taskList');
+    if (!list || list.dataset.orderKey !== listKey) return;
     const ids = Array.from(list.querySelectorAll('.task[data-task]'), card => card.dataset.task);
     const from = ids.indexOf(String(taskId));
     const to = from + direction;
@@ -324,12 +387,19 @@
     const task = tasks.find(item => String(item.id) === String(taskId));
     const targetOption = TASK_STATUS_OPTIONS.find(option => option.id === targetStatus);
     if (!task || task.completedAt || !targetOption || task.status === targetStatus) return;
-    moveTaskOrderEntry(task.id, orderKeyForStatus(task.status), targetOption.orderKey);
+    const oldCategoryKey = taskCategoryKey(task);
+    const oldArea = task.area;
     task.status = targetStatus;
+    if (task.area === 'work') {
+      if (targetStatus === 'waiting') { task.area = 'inbox'; task.category = null; }
+      else task.category = targetStatus === 'client_review' ? 'approval' : 'released';
+      task.categoryUpdatedAt = new Date().toISOString();
+    }
     if (targetStatus !== 'waiting' && !task.releaseDate) task.releaseDate = todayKey();
+    moveTaskOrderEntry(task.id, oldCategoryKey, taskCategoryKey(task));
     recordHistory(task, `Movida manualmente para ${targetOption.label}`);
     save(); render();
-    setTaskTab(targetOption.orderKey);
+    if (task.area !== oldArea || task.area === 'work') setTaskView(task.area,task.completedAt ? 'done' : task.category);
     if ($('detailsDialog').open && String(detailTaskId) === String(taskId)) renderDetails();
     showToast(`Movida para ${targetOption.label}.`);
   }
@@ -363,7 +433,7 @@
     if (!draggedTaskId) return;
     const list = taskListFromDragEvent(event);
     const listKey = list ? orderListForId(list.id) : null;
-    if (!list || !listKey || (draggedOrderList === 'done') !== (listKey === 'done')) return;
+    if (!list || !listKey || draggedOrderList !== listKey) return;
     const card = Array.from(document.querySelectorAll('#listView .task[data-task]')).find(item => item.dataset.task === draggedTaskId);
     if (!card) return;
     event.preventDefault();
@@ -386,37 +456,13 @@
     const list = taskListFromDragEvent(event);
     const listKey = list ? orderListForId(list.id) : null;
     const position = draggedDropPosition;
-    if (!list || !listKey || !position || position.listKey !== listKey || (draggedOrderList === 'done') !== (listKey === 'done')) return;
+    if (!list || !listKey || listKey !== draggedOrderList || !position || position.listKey !== listKey) return;
     event.preventDefault();
-    const task = tasks.find(item => String(item.id) === String(draggedTaskId));
-    const targetStatus = statusForOrderKey(listKey);
-    const sourceList = $(ORDER_LIST_IDS[draggedOrderList]);
-    const targetList = $(ORDER_LIST_IDS[listKey]);
-    const statusChanged = Boolean(task && !task.completedAt && targetStatus && task.status !== targetStatus);
-    if (sourceList && targetList && position.targetTaskId !== draggedTaskId) {
-      const sourceIds = Array.from(sourceList.querySelectorAll('.task[data-task]'), item => item.dataset.task);
-      const targetIds = draggedOrderList === listKey
-        ? sourceIds
-        : Array.from(targetList.querySelectorAll('.task[data-task]'), item => item.dataset.task);
-      if (draggedOrderList === listKey) {
-        saveManualOrder(listKey, insertDraggedTaskId(sourceIds, draggedTaskId, position.targetTaskId, position.after));
-      } else {
-        saveManualOrder(draggedOrderList, sourceIds.filter(id => String(id) !== String(draggedTaskId)));
-        saveManualOrder(listKey, insertDraggedTaskId(targetIds, draggedTaskId, position.targetTaskId, position.after));
-      }
-    }
-    if (statusChanged) {
-      const option = TASK_STATUS_OPTIONS.find(item => item.id === targetStatus);
-      task.status = targetStatus;
-      if (targetStatus !== 'waiting' && !task.releaseDate) task.releaseDate = todayKey();
-      recordHistory(task, `Movida manualmente para ${option.label}`);
-      save();
-    }
+    const sourceIds = Array.from(list.querySelectorAll('.task[data-task]'), item => item.dataset.task);
+    if (position.targetTaskId !== draggedTaskId) saveManualOrder(listKey, insertDraggedTaskId(sourceIds, draggedTaskId, position.targetTaskId, position.after));
     draggedTaskId = null; draggedOrderList = null; draggedDropPosition = null;
     render();
-    if (statusChanged) setTaskTab(listKey);
-    const statusLabel = TASK_STATUS_OPTIONS.find(option => option.id === targetStatus)?.label;
-    showToast(statusChanged ? `Movida para ${statusLabel}. ${manualOrderToast()}` : manualOrderToast());
+    showToast(manualOrderToast());
   }
   function handleTaskDragEnd() {
     if (!draggedTaskId) return;
@@ -428,17 +474,18 @@
     const releaseLabel = task.status === 'waiting'
       ? 'Ainda não liberada'
       : (task.releaseDate ? (age === 0 ? 'Liberada hoje' : `Liberada há ${age} ${age === 1 ? 'dia' : 'dias'}`) : 'Data de liberação não registrada');
+    const displayReleaseLabel = !completed && task.area === 'work' && task.category === 'quote' ? 'Enviar orçamento' : !completed && task.area === 'work' && task.category === 'approval' ? 'Aprovação' : releaseLabel;
     const releaseDate = task.status !== 'waiting' && task.releaseDate ? `<span class="task-release-date">· ${escapeHTML(formatDate(task.releaseDate))}</span>` : '';
     const taskId = escapeHTML(task.id);
     const completeButton = completed ? '' : `<button class="btn small good" data-action="complete" data-id="${taskId}" type="button" aria-label="Concluir tarefa" title="Concluir tarefa">CONCLUIR</button>`;
     const moveUp = `<button type="button" data-action="move-up" data-id="${taskId}" data-order-list="${listKey}"${position === 0 ? ' disabled' : ''}>↑ Mover para cima</button>`;
     const moveDown = `<button type="button" data-action="move-down" data-id="${taskId}" data-order-list="${listKey}"${position >= itemCount - 1 ? ' disabled' : ''}>↓ Mover para baixo</button>`;
     const moveStatus = completed ? '' : TASK_STATUS_OPTIONS.filter(option => option.id !== task.status).map(option => `<button type="button" data-action="move-status" data-id="${taskId}" data-status="${option.id}">Mover para: ${escapeHTML(option.label)}</button>`).join('');
-    const menu = `<details class="task-menu"><summary aria-label="Mais opções" title="Mais opções">⋮</summary><div class="task-menu-popover">${moveUp}${moveDown}${moveStatus ? '<div class="task-menu-divider"></div>' + moveStatus : ''}<div class="task-menu-divider"></div><button type="button" data-action="move-to-note" data-id="${taskId}">Mover para nota…</button><div class="task-menu-divider"></div><button type="button" data-action="delete" data-id="${taskId}">EXCLUIR</button></div></details>`;
+    const menu = `<details class="task-menu"><summary aria-label="Mais opções" title="Mais opções">⋮</summary><div class="task-menu-popover">${moveUp}${moveDown}${moveStatus ? '<div class="task-menu-divider"></div>' + moveStatus : ''}<div class="task-menu-divider"></div><button type="button" data-action="organize" data-id="${taskId}">Organizar em…</button><button type="button" data-action="move-to-note" data-id="${taskId}">Mover para nota…</button><div class="task-menu-divider"></div><button type="button" data-action="delete" data-id="${taskId}">EXCLUIR</button></div></details>`;
     const dragHandle = `<button class="task-drag-handle" type="button" draggable="true" data-drag-handle aria-label="Arrastar para reordenar" title="Arraste para reordenar">⠿</button>`;
     const actions = completeButton ? `<div class="task-actions">${completeButton}</div>` : '';
     return `<article class="task task-clickable" data-task="${taskId}" data-open-task="${taskId}" tabindex="0" aria-label="Abrir tarefa: ${escapeHTML(task.title)}" aria-keyshortcuts="Enter Space">
-      <div class="task-top">${dragHandle}<div class="task-main"><div class="task-title">${escapeHTML(task.title)}</div><div class="task-summary"><span class="task-release"><strong class="task-release-label${task.status !== 'waiting' && task.releaseDate ? '' : ' is-pending'}">${escapeHTML(releaseLabel)}</strong>${releaseDate}</span></div></div>${menu}</div>
+      <div class="task-top">${dragHandle}<div class="task-main"><div class="task-title">${escapeHTML(task.title)}</div><div class="task-summary"><span class="task-release"><strong class="task-release-label${task.status !== 'waiting' && task.releaseDate ? '' : ' is-pending'}">${escapeHTML(displayReleaseLabel)}</strong>${releaseDate}</span></div></div>${menu}</div>
       ${actions}
     </article>`;
   }
@@ -471,11 +518,20 @@
       $('nextTaskContent').innerHTML = '<div class="next-task-empty"><span class="next-task-kicker">PRÓXIMA TAREFA</span><p>Nenhuma tarefa liberada para começar.</p></div>';
     }
     $('activeCount').textContent = active.length;
-    $('activeListCount').textContent = active.length;
     $('reviewCount').textContent = review.length;
-    $('reviewListCount').textContent = review.length;
-    $('waitingListCount').textContent = waiting.length;
     $('waitingCount').textContent = waiting.length;
+    $('lifeAreaCount').textContent = countTaskCategory('life');
+    $('workAreaCount').textContent = countTaskCategory('work');
+    $('inboxAreaCount').textContent = countTaskCategory('inbox');
+    $('lifeFinanceCount').textContent = countTaskCategory('life','finance');
+    $('lifeHomeCount').textContent = countTaskCategory('life','home');
+    $('lifePersonalCount').textContent = countTaskCategory('life','personal');
+    $('lifeDoneCount').textContent = countTaskCategory('life','done');
+    $('workReleasedCount').textContent = countTaskCategory('work','released');
+    $('workQuoteCount').textContent = countTaskCategory('work','quote');
+    $('workApprovalCount').textContent = countTaskCategory('work','approval');
+    $('workDoneCount').textContent = countTaskCategory('work','done');
+    $('clearCompletedBtn').disabled = currentTaskArea === 'inbox' || countTaskCategory(currentTaskArea,'done') === 0;
     $('homeDoneCount').textContent = done.length;
     $('homeTotalText').textContent = `${total} tarefa${total === 1 ? '' : 's'}`;
     const metrics = [
@@ -490,13 +546,26 @@
       $(metric.progress).setAttribute('aria-valuenow', String(percent));
       $(metric.share).textContent = `${percent}% do total`;
     });
-    $('doneCount').textContent = done.length;
-    $('clearCompletedBtn').disabled = done.length === 0;
     $('estimateTotal').textContent = formatMinutes(active.reduce((sum,t) => sum + (Number(t.estimateMinutes)||0), 0));
-    $('activeList').innerHTML = active.length ? active.map((t,index) => renderTask(t,false,'active',index,active.length)).join('') : '<div class="empty">Nenhuma tarefa liberada por enquanto.</div>';
-    $('reviewList').innerHTML = review.length ? review.map((t,index) => renderTask(t,false,'review',index,review.length)).join('') : '<div class="empty">Nenhuma tarefa aguardando aprovação do cliente.</div>';
-    $('waitingList').innerHTML = waiting.length ? waiting.map((t,index) => renderTask(t,false,'waiting',index,waiting.length)).join('') : '<div class="empty">Entrada vazia por enquanto.</div>';
-    $('doneList').innerHTML = done.length ? done.map((t,index) => renderTask(t,true,'done',index,done.length)).join('') : '<div class="empty">As tarefas concluídas aparecem aqui.</div>';
+    const viewKey = currentTaskViewKey();
+    const viewTasks = applyManualOrder(tasksForCurrentView().sort((a,b) => {
+      if (a.completedAt && b.completedAt) return String(b.completedAt).localeCompare(String(a.completedAt));
+      if (a.completedAt) return 1;
+      if (b.completedAt) return -1;
+      if (a.dueDate && b.dueDate) return String(a.dueDate).localeCompare(String(b.dueDate));
+      if (a.dueDate) return -1;
+      if (b.dueDate) return 1;
+      return String(a.createdAt || '').localeCompare(String(b.createdAt || ''));
+    }), viewKey);
+    $('taskList').dataset.orderKey = viewKey;
+    const emptyMessage = currentTaskArea === 'inbox'
+      ? 'Entrada vazia por enquanto.'
+      : currentTaskCategory === 'done'
+        ? 'As tarefas concluídas desta área aparecem aqui.'
+        : `Nenhuma tarefa em ${escapeHTML(taskCategoryLabel(currentTaskArea,currentTaskCategory))} por enquanto.`;
+    $('taskList').innerHTML = viewTasks.length
+      ? viewTasks.map((task,index) => renderTask(task,Boolean(task.completedAt),viewKey,index,viewTasks.length)).join('')
+      : `<div class="empty">${emptyMessage}</div>`;
     renderHistory();
     applyPageMode();
     updateTimerDisplays();
@@ -691,7 +760,7 @@
     const details = String(task.details || '').trim();
     if (details) sections.push(details);
     const status = task.completedAt ? 'Concluído' : (TASK_STATUS_OPTIONS.find(option => option.id === task.status)?.label || 'Status não informado');
-    const metadata = [`Status: ${status}`];
+    const metadata = [`Status: ${status}`, `Organização: ${taskCategoryLabel(task.area,task.completedAt ? 'done' : task.category)}`];
     if (task.createdAt) metadata.push(`Criada: ${formatTimestamp(task.createdAt)}`);
     if (task.releaseDate) metadata.push(`Liberada: ${formatDate(task.releaseDate)}`);
     if (task.dueDate) metadata.push(`Prazo: ${formatDate(task.dueDate)}`);
@@ -727,7 +796,7 @@
     if (!window.confirm(`Mover “${note.title || title}” para uma tarefa liberada hoje? O texto irá para os detalhes e a nota será removida.`)) return;
     const now = new Date().toISOString();
     const task = {
-      id:id(), title, details, comments:[], links:[], status:'active', releaseDate:todayKey(), dueDate:null,
+      id:id(), title, details, comments:[], links:[], status:'active', area:'inbox', category:null, categoryUpdatedAt:now, releaseDate:todayKey(), dueDate:null,
       estimateMinutes:60, reward:'', blocker:'', timeSpentSeconds:0, createdAt:now, completedAt:null, completedDate:null, subtasks:[]
     };
     recordHistory(task, 'Convertida de nota em tarefa', now);
@@ -735,7 +804,7 @@
     note.updatedAt = note.deletedAt;
     tasks.push(task);
     save(false); saveNotes(false); scheduleCloudSync(); render(); renderNotes();
-    setPage('tasks'); setTaskTab('active');
+    setPage('tasks'); setTaskView('inbox','');
     showToast('Nota movida para tarefa e liberada hoje.');
   }
   function moveTaskToNote(taskId) {
@@ -755,26 +824,68 @@
     setPage('notes');
     showToast('Tarefa movida para nota.');
   }
+  function currentTaskViewKey(area = currentTaskArea, category = currentTaskCategory) {
+    if (area === 'inbox') return 'inbox';
+    return `${area}_${category || (area === 'life' ? 'finance' : 'released')}`;
+  }
+  function taskCategoryLabel(area, category) {
+    const labels = { inbox:'Entrada', finance:'Finanças', home:'Casa', personal:'Pessoal', released:'Liberado', quote:'Enviar orçamento', approval:'Aprovação', done:'Concluído' };
+    return area === 'inbox' ? 'Entrada' : `${area === 'life' ? 'Vida' : 'Trabalho'} · ${labels[category] || category}`;
+  }
+  function tasksForCurrentView() {
+    if (currentTaskArea === 'inbox') return tasks.filter(task => task.area === 'inbox');
+    if (currentTaskCategory === 'done') return tasks.filter(task => task.area === currentTaskArea && Boolean(task.completedAt));
+    return tasks.filter(task => task.area === currentTaskArea && task.category === currentTaskCategory && !task.completedAt);
+  }
+  function countTaskCategory(area, category = '') {
+    if (area === 'inbox' || !category) return tasks.filter(task => task.area === area).length;
+    return category === 'done'
+      ? tasks.filter(task => task.area === area && Boolean(task.completedAt)).length
+      : tasks.filter(task => task.area === area && task.category === category && !task.completedAt).length;
+  }
+  function updateTaskNavigation() {
+    document.body.classList.toggle('page-tasks', currentPage === 'tasks');
+    document.body.classList.toggle('task-area-inbox', currentTaskArea === 'inbox');
+    document.querySelectorAll('[data-task-area]:not([data-task-category])').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.taskArea === currentTaskArea)));
+    const categoryNav = $('taskCategoryNav');
+    if (categoryNav) {
+      categoryNav.classList.toggle('hidden', currentTaskArea === 'inbox');
+      categoryNav.setAttribute('aria-hidden', String(currentTaskArea === 'inbox'));
+      categoryNav.querySelectorAll('[data-task-category]').forEach(button => {
+        const visible = button.dataset.taskArea === currentTaskArea;
+        button.hidden = !visible;
+        button.setAttribute('aria-pressed', String(visible && button.dataset.taskCategory === currentTaskCategory));
+      });
+    }
+    const showClear = currentTaskArea !== 'inbox' && currentTaskCategory === 'done';
+    $('taskListToolbar')?.classList.toggle('hidden', !showClear);
+    $('clearCompletedBtn')?.setAttribute('aria-label', `Limpar todas as tarefas concluídas de ${currentTaskArea === 'life' ? 'VIDA' : 'TRABALHO'}`);
+  }
+  function setTaskView(area, category, resetScroll = true) {
+    if (!['life','work','inbox'].includes(area)) return;
+    const categories = TASK_AREA_CATEGORIES[area] || [];
+    const nextCategory = area === 'inbox' ? '' : (category === 'done' || categories.includes(category) ? category : categories[0]);
+    currentTaskArea = area; currentTaskCategory = nextCategory;
+    localStorage.setItem(TASK_AREA_STORAGE_KEY, currentTaskArea);
+    localStorage.setItem(TASK_CATEGORY_STORAGE_KEY, currentTaskCategory);
+    updateTaskNavigation();
+    render();
+    if (resetScroll) $('taskList').scrollTop = 0;
+  }
+  function setTaskArea(area) { setTaskView(area, area === 'life' ? 'finance' : area === 'work' ? 'released' : '', true); }
+  function setTaskCategory(category) { setTaskView(currentTaskArea, category, true); }
   function setTaskTab(tab, resetScroll = true) {
-    if (!Object.hasOwn(ORDER_LIST_IDS, tab)) return;
-    currentTaskTab = tab;
-    document.querySelectorAll('.task-tab[data-task-tab]').forEach(button => {
-      button.setAttribute('aria-pressed', String(button.dataset.taskTab === tab));
-    });
-    document.querySelectorAll('#listView > [data-task-section]').forEach(section => {
-      const active = section.dataset.taskSection === tab;
-      section.classList.toggle('hidden', !active);
-      section.classList.toggle('is-active', active);
-      section.setAttribute('aria-hidden', String(!active));
-    });
-    if (resetScroll) {
-      const list = $(ORDER_LIST_IDS[tab]);
-      if (list) list.scrollTop = 0;
+    const aliases = { active:['work','released'], review:['work','approval'], waiting:['inbox',''], done:[currentTaskArea === 'inbox' ? 'inbox' : currentTaskArea,'done'] };
+    if (aliases[tab]) { setTaskView(...aliases[tab], resetScroll); return; }
+    if (TASK_VIEW_ORDER_KEYS.includes(tab)) {
+      const [area,category] = tab.split('_',2);
+      setTaskView(area, category, resetScroll);
     }
   }
   function updateTaskScreenMode() {
     const compact = currentPage === 'tasks' && $('formPanel').classList.contains('hidden');
     document.body.classList.toggle('tasks-screen', compact);
+    document.body.classList.toggle('task-area-inbox', currentTaskArea === 'inbox');
   }
   function applyPageMode() {
     const views = { home:'homePage', tasks:'tasksPage', notes:'notesPage', settings:'settingsPage' };
@@ -784,27 +895,30 @@
       else button.removeAttribute('aria-current');
     });
     updateTaskScreenMode();
+    updateTaskNavigation();
   }
   function setPage(page) {
     if (!['home','tasks','notes','settings'].includes(page)) return;
     currentPage = page;
     localStorage.setItem('naMinhaMao.page', currentPage);
     applyPageMode();
-    if (currentPage === 'tasks') setTaskTab(currentTaskTab, false);
+    if (currentPage === 'tasks') updateTaskNavigation();
     if (currentPage === 'notes') renderNotes();
   }
   function openDashboardStatus(status) {
     if (!Object.hasOwn(ORDER_LIST_IDS, status)) return;
-    currentPage = 'tasks';
-    localStorage.setItem('naMinhaMao.page', currentPage);
-    applyPageMode();
-    setTaskTab(status);
+    const matches = task => status === 'done' ? Boolean(task.completedAt) : !task.completedAt && task.status === ({ active:'active', review:'client_review', waiting:'waiting' }[status]);
+    const matchingTask = tasks.find(matches);
+    const fallback = { active:['work','released'], review:['work','approval'], waiting:['inbox',''], done:[currentTaskArea === 'inbox' ? 'inbox' : currentTaskArea,'done'] }[status];
+    const destination = matchingTask ? [matchingTask.area,matchingTask.area === 'inbox' ? '' : matchingTask.completedAt ? 'done' : matchingTask.category] : fallback;
+    setPage('tasks');
+    setTaskView(destination[0], destination[1]);
   }
   function openTaskInList(taskId) {
     const task = tasks.find(item => String(item.id) === String(taskId) && !item.completedAt);
     if (!task) { showToast('Essa tarefa não está mais disponível para abrir.'); return; }
     setPage('tasks');
-    setTaskTab(orderKeyForStatus(task.status) || 'active');
+    setTaskView(task.area, task.category);
     requestAnimationFrame(() => {
       const target = Array.from(document.querySelectorAll('#listView .task[data-task]')).find(node => node.dataset.task === String(taskId));
       if (!target) return;
@@ -868,6 +982,7 @@
       ? 'Ainda não liberada'
       : (task.releaseDate ? `${age === 0 ? 'Liberada hoje' : `Liberada há ${age} ${age === 1 ? 'dia' : 'dias'}`} · ${formatDate(task.releaseDate)}` : 'Data de liberação não registrada');
     const metaItems = [
+      { label:'Organização', value:taskCategoryLabel(task.area,task.completedAt ? 'done' : task.category) },
       { label:'Status', value:statusLabel },
       { label:'Liberação', value:releaseLabel },
       { label:'Entrega', value:task.dueDate ? formatDate(task.dueDate) : 'Sem data de entrega', className:task.dueDate ? 'due' : '' },
@@ -1019,6 +1134,30 @@
     $('releaseReward').value = task.reward || '';
     $('releaseDialog').showModal();
   }
+  function openTaskCategoryDialog(taskId) {
+    const task = tasks.find(item => String(item.id) === String(taskId));
+    if (!task) return;
+    categoryTaskId = String(task.id);
+    $('categoryTaskName').textContent = task.title;
+    $('categoryDestination').value = task.area === 'inbox' ? 'inbox' : `${task.area}:${task.category}`;
+    $('taskList').querySelectorAll('.task-menu[open]').forEach(menu => menu.removeAttribute('open'));
+    $('categoryDialog').showModal();
+  }
+  function onTaskCategorySubmit(event) {
+    event.preventDefault();
+    const task = tasks.find(item => String(item.id) === String(categoryTaskId));
+    if (!task) { $('categoryDialog').close(); return; }
+    const destination = String($('categoryDestination').value || 'inbox');
+    const [area,category] = destination === 'inbox' ? ['inbox',null] : destination.split(':');
+    if (!Object.hasOwn(TASK_AREA_CATEGORIES,area) || (area !== 'inbox' && !TASK_AREA_CATEGORIES[area].includes(category))) return;
+    const oldKey = taskCategoryKey(task);
+    task.area = area; task.category = category; task.categoryUpdatedAt = new Date().toISOString();
+    moveTaskOrderEntry(task.id,oldKey,taskCategoryKey(task));
+    recordHistory(task,`Organizada em ${taskCategoryLabel(area,category)}`);
+    save(); render(); $('categoryDialog').close(); categoryTaskId = null;
+    if ($('detailsDialog').open && String(detailTaskId) === String(task.id)) renderDetails();
+    showToast(`Tarefa organizada em ${taskCategoryLabel(area,category)}.`);
+  }
   function handleTaskCardClick(event) {
     if (event.target.closest('button,a,input,select,textarea,summary,.task-menu')) return;
     const card = event.target.closest('.task[data-open-task]');
@@ -1053,26 +1192,31 @@
           : `Concluir “${task.title}”?`;
         if (!window.confirm(confirmMessage)) return;
         if (timer?.taskId === taskId && timer.startedAt) pauseTimer();
-        moveTaskOrderEntry(task.id, orderKeyForStatus(task.status), 'done');
+        const previousCategoryKey = taskCategoryKey(task);
         const completedAt = new Date().toISOString();
         task.completedAt = completedAt;
+        moveTaskOrderEntry(task.id, previousCategoryKey, taskCategoryKey(task));
         task.completedDate = todayKey();
         recordHistory(task, 'Tarefa concluída', completedAt);
         save(); render();
         showToast(task.reward ? `Concluída! Recompensa combinada: ${task.reward}` : 'Tarefa concluída. Boa — mais uma etapa feita.');
         break;
       }
-      case 'reopen':
-        moveTaskOrderEntry(task.id, 'done', orderKeyForStatus(task.status));
-        task.completedAt = null; task.completedDate = null; recordHistory(task, 'Tarefa reaberta'); save(); render();
+      case 'reopen': {
+        const previousCategoryKey = taskCategoryKey(task);
+        task.completedAt = null; task.completedDate = null;
+        moveTaskOrderEntry(task.id, previousCategoryKey, taskCategoryKey(task));
+        recordHistory(task, 'Tarefa reaberta'); save(); render();
         if ($('detailsDialog').open) renderDetails();
         showToast('Tarefa reaberta.'); break;
+      }
       case 'move-up':
         moveTaskInList(taskId, button.dataset.orderList, -1); break;
       case 'move-down':
         moveTaskInList(taskId, button.dataset.orderList, 1); break;
       case 'move-status':
         moveTaskToStatus(taskId, button.dataset.status); break;
+      case 'organize': openTaskCategoryDialog(taskId); break;
       case 'move-to-note': moveTaskToNote(taskId); break;
       case 'delete':
         if (!window.confirm(`Excluir “${task.title}”? Essa ação não pode ser desfeita.`)) return;
@@ -1082,11 +1226,13 @@
     }
   }
   function clearCompletedTasks() {
-    const completed = tasks.filter(task => Boolean(task.completedAt));
+    if (currentTaskArea === 'inbox' || currentTaskCategory !== 'done') return;
+    const completed = tasks.filter(task => Boolean(task.completedAt) && task.area === currentTaskArea);
     if (!completed.length) return;
     const count = completed.length;
     const noun = count === 1 ? 'tarefa concluída' : 'tarefas concluídas';
-    if (!window.confirm(`Apagar definitivamente ${count} ${noun}? Essa ação não pode ser desfeita.`)) return;
+    const areaLabel = currentTaskArea === 'life' ? 'VIDA' : 'TRABALHO';
+    if (!window.confirm(`Apagar definitivamente ${count} ${noun} de ${areaLabel}? Essa ação não pode ser desfeita.`)) return;
     const completedIds = new Set(completed.map(task => String(task.id)));
     if (timer?.taskId && completedIds.has(String(timer.taskId))) { if (timer.startedAt) pauseTimer(); timer = null; }
     const nextOrder = normalizeTaskOrder(taskOrder);
@@ -1097,7 +1243,7 @@
       nextOrder[key] = remaining;
     });
     if (orderChanged) persistTaskOrder(nextOrder, nextTaskOrderTimestamp());
-    tasks = tasks.filter(task => !task.completedAt);
+    tasks = tasks.filter(task => !completedIds.has(String(task.id)));
     save(); render();
     showToast(count === 1 ? '1 tarefa concluída removida.' : `${count} tarefas concluídas removidas.`);
   }
@@ -1124,8 +1270,10 @@
       task.details = String(data.get('details')||'').trim();
       task.estimateMinutes = estimate;
       if (wasWaiting && ready) {
-        moveTaskOrderEntry(task.id, 'waiting', 'active');
+        const previousCategoryKey = taskCategoryKey(task);
         task.status = 'active'; task.releaseDate = todayKey();
+        if (task.area === 'work') { task.category = 'released'; task.categoryUpdatedAt = new Date().toISOString(); }
+        moveTaskOrderEntry(task.id, previousCategoryKey, taskCategoryKey(task));
         task.dueDate = String(data.get('dueDate')||'') || null;
         task.reward = String(data.get('reward')||'').trim(); task.blocker = '';
       } else if (wasWaiting) {
@@ -1136,18 +1284,20 @@
       }
       const changed = before.title !== task.title || before.details !== task.details || before.estimateMinutes !== task.estimateMinutes || before.status !== task.status || before.releaseDate !== (task.releaseDate || null) || before.dueDate !== (task.dueDate || null) || before.reward !== (task.reward || '') || before.blocker !== (task.blocker || '');
       if (changed) recordHistory(task, wasWaiting && ready ? 'Tarefa liberada para começar' : 'Tarefa atualizada');
-      save(); render(); closeForm(); showToast(wasWaiting && ready ? 'Liberada hoje. A contagem começa agora.' : 'Tarefa atualizada.');
+      save(); render(); closeForm();
+      if (wasWaiting && ready && task.area === 'work') setTaskView('work','released');
+      showToast(wasWaiting && ready ? 'Liberada hoje. A contagem começa agora.' : 'Tarefa atualizada.');
       return;
     }
     const task = {
-      id:id(), title, details: String(data.get('details')||'').trim(), comments: [], links: [], status: ready ? 'active' : 'waiting',
+      id:id(), title, details: String(data.get('details')||'').trim(), comments: [], links: [], status: ready ? 'active' : 'waiting', area:'inbox', category:null, categoryUpdatedAt:new Date().toISOString(),
       releaseDate: ready ? todayKey() : null, dueDate: ready ? (String(data.get('dueDate')||'') || null) : null,
       estimateMinutes: estimate, reward: ready ? String(data.get('reward')||'').trim() : '',
       blocker: ready ? '' : String(data.get('blocker')||'').trim(), timeSpentSeconds: 0,
       createdAt: new Date().toISOString(), completedAt: null, subtasks: []
     };
-    tasks.push(task); save(); render(); form.reset(); $('taskId').value = ''; $('estimate').value = 60; closeForm();
-    showToast(ready ? 'Tarefa liberada e registrada a partir de hoje.' : 'Tarefa adicionada à caixa de entrada.');
+    tasks.push(task); save(); render(); form.reset(); $('taskId').value = ''; $('estimate').value = 60; closeForm(); setTaskView('inbox','');
+    showToast(ready ? 'Tarefa liberada e registrada a partir de hoje.' : 'Tarefa adicionada à Entrada.');
   }
   function onReleaseSubmit(event) {
     event.preventDefault();
@@ -1155,12 +1305,15 @@
     if (!task) return;
     const estimate = Number($('releaseEstimate').value);
     if (!Number.isFinite(estimate) || estimate < 5) { $('releaseEstimate').focus(); return; }
-    moveTaskOrderEntry(task.id, 'waiting', 'active');
+    const previousCategoryKey = taskCategoryKey(task);
     task.status = 'active'; task.releaseDate = todayKey();
+    if (task.area === 'work') { task.category = 'released'; task.categoryUpdatedAt = new Date().toISOString(); }
+    moveTaskOrderEntry(task.id, previousCategoryKey, taskCategoryKey(task));
     task.dueDate = $('releaseDue').value || null;
     task.estimateMinutes = estimate; task.reward = $('releaseReward').value.trim(); task.blocker = '';
     recordHistory(task, 'Tarefa liberada para começar');
     releaseTarget = null; save(); $('releaseDialog').close(); render();
+    if (task.area === 'work') setTaskView('work','released');
     showToast('Liberada hoje. A contagem de dias começa agora.');
   }
   function exportBackup() {
@@ -1327,11 +1480,16 @@
     }
     const currentUser = await getCurrentUser();
     setRemoteUser(currentUser);
+    const remoteTaskCategories = normalizeTaskCategoryMap(currentUser.user_metadata?.[USER_TASK_CATEGORIES_KEY]);
     remoteTaskIds.clear(); taskRows.forEach(row => remoteTaskIds.add(String(row.id)));
     remoteCommentIds.clear(); commentRows.forEach(row => remoteCommentIds.add(String(row.id)));
     remoteLinkIds.clear(); linkRows.forEach(row => remoteLinkIds.add(String(row.id)));
     remoteNoteIds.clear(); if (remoteNotesEnabled) noteRows.forEach(row => remoteNoteIds.add(String(row.id)));
     const remoteById = new Map(taskRows.map(row => [String(row.id), rowToTask(row)]));
+    remoteById.forEach((task, taskId) => {
+      if (remoteTaskCategories[taskId]) applyTaskCategoryRecord(task,remoteTaskCategories[taskId]);
+      else { task.area = 'inbox'; task.category = null; task.categoryUpdatedAt = null; }
+    });
     const remoteNotesById = new Map((remoteNotesEnabled ? noteRows : []).map(row => [String(row.id), rowToNote(row)]));
     for (const row of commentRows) {
       const task = remoteById.get(String(row.task_id));
@@ -1361,7 +1519,11 @@
       if (!remote) return sum + (note.deletedAt ? 0 : 1);
       return sum + (noteRevision(note) > noteRevision(remote) ? 1 : 0);
     }, 0) : 0;
-    const pendingLocalData = localOnlyTasks.length + missingLocalComments + missingLocalLinks + missingLocalSubtasks + pendingLocalNotes;
+    const missingLocalCategories = localTasks.reduce((sum, task) => {
+      const remote = remoteById.get(String(task.id));
+      return sum + (remote && taskCategoryRevision(task) > taskCategoryRevision(remote) ? 1 : 0);
+    }, 0);
+    const pendingLocalData = localOnlyTasks.length + missingLocalComments + missingLocalLinks + missingLocalSubtasks + missingLocalCategories + pendingLocalNotes;
     if (pendingLocalData && !window.confirm(`Enviar ${pendingLocalData} item(ns) local(is) para a conta privada do Supabase? Nada será apagado do navegador.`)) {
       clearAuth(true);
       setAuthMessage('Nada foi enviado. Você continua no modo local.');
@@ -1373,6 +1535,9 @@
       if (!remote) {
         remoteById.set(String(local.id), local);
         continue;
+      }
+      if (taskCategoryRevision(local) >= taskCategoryRevision(remote)) {
+        remote.area = local.area; remote.category = local.category; remote.categoryUpdatedAt = local.categoryUpdatedAt;
       }
       const commentIds = new Set((remote.comments || []).map(item => String(item.id)));
       for (const item of local.comments || []) if (!commentIds.has(String(item.id))) remote.comments.push(item);
@@ -1407,6 +1572,16 @@
     } else {
       persistTaskOrder({}, null);
     }
+    if (!taskOrder.inbox.length) {
+      const inboxIds = tasks.filter(task => task.area === 'inbox').map(task => String(task.id));
+      if (inboxIds.length) {
+        const allowedIds = new Set(inboxIds);
+        const legacyIds = LEGACY_TASK_ORDER_KEYS.flatMap(key => taskOrder[key]);
+        const nextOrder = normalizeTaskOrder(taskOrder);
+        nextOrder.inbox = [...new Set([...legacyIds, ...inboxIds])].filter(taskId => allowedIds.has(taskId));
+        persistTaskOrder(nextOrder,nextTaskOrderTimestamp());
+      }
+    }
     syncEnabled = true;
     localStorage.setItem(SYNC_KEY, 'true');
     renderNotes();
@@ -1422,6 +1597,34 @@
       method:'POST', headers:{ Prefer:'resolution=merge-duplicates,return=minimal' }, body:JSON.stringify(rows)
     });
     rows.forEach(row => remoteNoteIds.add(String(row.id)));
+  }
+  async function syncTaskCategoriesToCloud() {
+    if (!session?.access_token || !syncEnabled) return;
+    const user = await getCurrentUser();
+    setRemoteUser(user);
+    const metadata = user.user_metadata && typeof user.user_metadata === 'object' ? user.user_metadata : {};
+    const remoteCategories = normalizeTaskCategoryMap(metadata[USER_TASK_CATEGORIES_KEY]);
+    const mergedCategories = {};
+    let localChanged = false;
+    for (const task of tasks) {
+      const taskId = String(task.id);
+      const remoteCategory = remoteCategories[taskId];
+      const localRevision = taskCategoryRevision(task);
+      const remoteRevision = Date.parse(remoteCategory?.updatedAt || '') || 0;
+      if (remoteCategory && remoteRevision > localRevision) {
+        applyTaskCategoryRecord(task,remoteCategory);
+        mergedCategories[taskId] = remoteCategory;
+        localChanged = true;
+      } else {
+        if (!task.categoryUpdatedAt) { task.categoryUpdatedAt = new Date().toISOString(); localChanged = true; }
+        mergedCategories[taskId] = taskCategoryRecord(task);
+      }
+    }
+    if (localChanged) { save(false); render(); }
+    if (JSON.stringify(remoteCategories) !== JSON.stringify(mergedCategories)) {
+      const updatedUser = await updateCurrentUserMetadata({ ...metadata, [USER_TASK_CATEGORIES_KEY]:mergedCategories });
+      setRemoteUser(updatedUser);
+    }
   }
   async function syncTaskOrderToCloud() {
     if (!session?.access_token || !syncEnabled) return;
@@ -1504,6 +1707,7 @@
           remoteTaskIds.delete(taskId);
         }
         await syncTaskOrderToCloud();
+        await syncTaskCategoriesToCloud();
         syncStatusText = `Sincronizado · ${new Date().toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' })}`;
         $('authStatus').textContent = syncStatusText;
       } while (syncQueued);
@@ -1602,9 +1806,13 @@
     const button = event.target.closest('button[data-page]');
     if (button) setPage(button.dataset.page);
   });
-  $('taskSubnav').addEventListener('click', event => {
-    const button = event.target.closest('button[data-task-tab]');
-    if (button) setTaskTab(button.dataset.taskTab);
+  $('taskAreaNav').addEventListener('click', event => {
+    const button = event.target.closest('button[data-task-area]:not([data-task-category])');
+    if (button) setTaskArea(button.dataset.taskArea);
+  });
+  $('taskCategoryNav').addEventListener('click', event => {
+    const button = event.target.closest('button[data-task-category]');
+    if (button && button.dataset.taskArea === currentTaskArea) setTaskCategory(button.dataset.taskCategory);
   });
   $('nextTaskContent').addEventListener('click', event => {
     const button = event.target.closest('button[data-open-task]');
@@ -1642,8 +1850,11 @@
   document.querySelectorAll('input[name="ready"]').forEach(input => input.addEventListener('change', setFormMode));
   $('releaseForm').addEventListener('submit', onReleaseSubmit);
   $('cancelReleaseBtn').addEventListener('click', () => $('releaseDialog').close());
+  $('categoryForm').addEventListener('submit', onTaskCategorySubmit);
+  $('cancelCategoryBtn').addEventListener('click', () => $('categoryDialog').close());
+  $('categoryDialog').addEventListener('close', () => { categoryTaskId = null; });
   $('exportBtn').addEventListener('click', exportBackup);
-  ['activeList','reviewList','waitingList','doneList'].forEach(id => {
+  ['taskList'].forEach(id => {
     $(id).addEventListener('click', handleTaskCardClick);
     $(id).addEventListener('keydown', handleTaskCardKeydown);
     $(id).addEventListener('click', handleListAction);
