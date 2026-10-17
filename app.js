@@ -434,7 +434,7 @@
     const moveUp = `<button type="button" data-action="move-up" data-id="${taskId}" data-order-list="${listKey}"${position === 0 ? ' disabled' : ''}>↑ Mover para cima</button>`;
     const moveDown = `<button type="button" data-action="move-down" data-id="${taskId}" data-order-list="${listKey}"${position >= itemCount - 1 ? ' disabled' : ''}>↓ Mover para baixo</button>`;
     const moveStatus = completed ? '' : TASK_STATUS_OPTIONS.filter(option => option.id !== task.status).map(option => `<button type="button" data-action="move-status" data-id="${taskId}" data-status="${option.id}">Mover para: ${escapeHTML(option.label)}</button>`).join('');
-    const menu = `<details class="task-menu"><summary aria-label="Mais opções" title="Mais opções">⋮</summary><div class="task-menu-popover">${moveUp}${moveDown}${moveStatus ? '<div class="task-menu-divider"></div>' + moveStatus : ''}<div class="task-menu-divider"></div><button type="button" data-action="delete" data-id="${taskId}">EXCLUIR</button></div></details>`;
+    const menu = `<details class="task-menu"><summary aria-label="Mais opções" title="Mais opções">⋮</summary><div class="task-menu-popover">${moveUp}${moveDown}${moveStatus ? '<div class="task-menu-divider"></div>' + moveStatus : ''}<div class="task-menu-divider"></div><button type="button" data-action="move-to-note" data-id="${taskId}">Mover para nota…</button><div class="task-menu-divider"></div><button type="button" data-action="delete" data-id="${taskId}">EXCLUIR</button></div></details>`;
     const dragHandle = `<button class="task-drag-handle" type="button" draggable="true" data-drag-handle aria-label="Arrastar para reordenar" title="Arraste para reordenar">⠿</button>`;
     const actions = completeButton ? `<div class="task-actions">${completeButton}</div>` : '';
     return `<article class="task task-clickable" data-task="${taskId}" data-open-task="${taskId}" tabindex="0" aria-label="Abrir tarefa: ${escapeHTML(task.title)}" aria-keyshortcuts="Enter Space">
@@ -618,7 +618,7 @@
         : '<div class="empty">Ainda não há notas. Crie uma para guardar uma ideia ou informação.</div>';
       return;
     }
-    list.innerHTML = visibleNotes.map(note => `<article class="panel note-card"><div class="panel-head"><div class="note-heading"><h3>${escapeHTML(note.title || 'Nota sem título')}</h3><time class="hint" datetime="${escapeHTML(note.updatedAt || note.createdAt || '')}">Atualizada ${escapeHTML(formatTimestamp(note.updatedAt || note.createdAt))}</time></div><div class="note-actions"><button class="btn ghost small" type="button" data-note-action="edit" data-id="${escapeHTML(note.id)}">Editar</button><button class="btn ghost small" type="button" data-note-action="delete" data-id="${escapeHTML(note.id)}">Excluir</button></div></div><p class="note-content">${escapeHTML(note.content || '')}</p></article>`).join('');
+    list.innerHTML = visibleNotes.map(note => `<article class="panel note-card"><div class="panel-head"><div class="note-heading"><h3>${escapeHTML(note.title || 'Nota sem título')}</h3><time class="hint" datetime="${escapeHTML(note.updatedAt || note.createdAt || '')}">Atualizada ${escapeHTML(formatTimestamp(note.updatedAt || note.createdAt))}</time></div><div class="note-actions"><button class="btn ghost small" type="button" data-note-action="move-to-task" data-id="${escapeHTML(note.id)}">Mover para tarefa…</button><button class="btn ghost small" type="button" data-note-action="edit" data-id="${escapeHTML(note.id)}">Editar</button><button class="btn ghost small" type="button" data-note-action="delete" data-id="${escapeHTML(note.id)}">Excluir</button></div></div><p class="note-content">${escapeHTML(note.content || '')}</p></article>`).join('');
   }
   function openNewNote() {
     $('noteForm').reset();
@@ -669,6 +669,7 @@
     const note = notes.find(item => String(item.id) === String(button.dataset.id) && !item.deletedAt);
     if (!note) return;
     if (button.dataset.noteAction === 'edit') { openEditNote(note.id); return; }
+    if (button.dataset.noteAction === 'move-to-task') { moveNoteToTask(note.id); return; }
     if (button.dataset.noteAction === 'delete') {
       if (!window.confirm(`Excluir a nota “${note.title || 'Nota sem título'}”?`)) return;
       const now = nextNoteTimestamp(note);
@@ -676,6 +677,82 @@
       note.updatedAt = now;
       saveNotes(); renderNotes(); showToast('Nota excluída.');
     }
+  }
+  function canConvertBetweenTasksAndNotes() {
+    if (syncEnabled && !remoteNotesEnabled) {
+      showToast('A sincronização de notas está indisponível; não movi nada para evitar divergência entre aparelhos.');
+      return false;
+    }
+    return true;
+  }
+  function taskToNoteContent(task) {
+    const sections = [];
+    const details = String(task.details || '').trim();
+    if (details) sections.push(details);
+    const status = task.completedAt ? 'Concluído' : (TASK_STATUS_OPTIONS.find(option => option.id === task.status)?.label || 'Status não informado');
+    const metadata = [`Status: ${status}`];
+    if (task.createdAt) metadata.push(`Criada: ${formatTimestamp(task.createdAt)}`);
+    if (task.releaseDate) metadata.push(`Liberada: ${formatDate(task.releaseDate)}`);
+    if (task.dueDate) metadata.push(`Prazo: ${formatDate(task.dueDate)}`);
+    metadata.push(`Estimativa: ${formatMinutes(task.estimateMinutes)}`);
+    const spent = elapsedSeconds(task);
+    if (spent > 0) metadata.push(`Tempo registrado: ${clock(spent)}`);
+    if (task.completedAt) metadata.push(`Concluída: ${formatTimestamp(task.completedAt)}`);
+    if (task.reward) metadata.push(`Recompensa: ${String(task.reward)}`);
+    if (task.blocker) metadata.push(`Bloqueio: ${String(task.blocker)}`);
+    sections.push(`Dados da tarefa\n${metadata.join('\n')}`);
+    const subtasks = (Array.isArray(task.subtasks) ? task.subtasks : []).filter(item => item && !item.deletedAt);
+    if (subtasks.length) sections.push(`Checklist\n${subtasks.map(item => `- [${item.completedAt ? 'x' : ' '}] ${String(item.text || 'Subtarefa')}`).join('\n')}`);
+    const links = (Array.isArray(task.links) ? task.links : []).filter(link => link && (link.url || link.label));
+    if (links.length) sections.push(`Links\n${links.map(link => `- ${String(link.label || link.url || 'Link')}${link.url && link.label ? `: ${String(link.url)}` : ''}`).join('\n')}`);
+    const comments = (Array.isArray(task.comments) ? task.comments : []).filter(comment => comment && String(comment.text || '').trim());
+    if (comments.length) sections.push(`Comentários e histórico\n${comments.map(comment => {
+      const raw = String(comment.text || '').trim();
+      const text = raw.startsWith(HISTORY_PREFIX) ? `Histórico: ${raw.slice(HISTORY_PREFIX.length)}` : `${String(comment.source || 'Manual')}: ${raw}`;
+      const date = comment.createdAt ? `${formatTimestamp(comment.createdAt)} — ` : '';
+      return `- ${date}${text}`;
+    }).join('\n')}`);
+    return sections.join('\n\n').trim();
+  }
+  function moveNoteToTask(noteId) {
+    const note = notes.find(item => String(item.id) === String(noteId) && !item.deletedAt);
+    if (!note || !canConvertBetweenTasksAndNotes()) return;
+    const noteTitle = String(note.title || '').trim();
+    const firstLine = String(note.content || '').split(/\r?\n/).map(line => line.trim()).find(Boolean) || '';
+    const sourceTitle = noteTitle || firstLine || 'Nota sem título';
+    const title = sourceTitle.length > 140 ? `${sourceTitle.slice(0,139).trimEnd()}…` : sourceTitle;
+    const details = noteTitle.length > 140 ? `Título original da nota: ${noteTitle}\n\n${String(note.content || '')}` : String(note.content || '');
+    if (details.length > 20200) { showToast('O conteúdo desta nota ultrapassa o limite dos detalhes de uma tarefa; não movi nada.'); return; }
+    if (!window.confirm(`Mover “${note.title || title}” para uma tarefa liberada hoje? O texto irá para os detalhes e a nota será removida.`)) return;
+    const now = new Date().toISOString();
+    const task = {
+      id:id(), title, details, comments:[], links:[], status:'active', releaseDate:todayKey(), dueDate:null,
+      estimateMinutes:60, reward:'', blocker:'', timeSpentSeconds:0, createdAt:now, completedAt:null, completedDate:null, subtasks:[]
+    };
+    recordHistory(task, 'Convertida de nota em tarefa', now);
+    note.deletedAt = nextNoteTimestamp(note);
+    note.updatedAt = note.deletedAt;
+    tasks.push(task);
+    save(false); saveNotes(false); scheduleCloudSync(); render(); renderNotes();
+    setPage('tasks'); setTaskTab('active');
+    showToast('Nota movida para tarefa e liberada hoje.');
+  }
+  function moveTaskToNote(taskId) {
+    const task = tasks.find(item => String(item.id) === String(taskId));
+    if (!task || !canConvertBetweenTasksAndNotes()) return;
+    if (taskToNoteContent(task).length > 20000) { showToast('O conteúdo completo ultrapassa o limite de uma nota; não movi a tarefa.'); return; }
+    if (!window.confirm(`Mover “${task.title}” para nota? Detalhes, checklist, datas, links e comentários serão incluídos; a tarefa será removida.`)) return;
+    if (timer?.taskId === task.id) { if (timer.startedAt) pauseTimer(); timer = null; }
+    const now = new Date().toISOString();
+    const note = { id:id(), title:String(task.title || ''), content:taskToNoteContent(task), createdAt:now, updatedAt:now, deletedAt:null };
+    if (note.content.length > 20000) { save(false); render(); showToast('O conteúdo completo ultrapassa o limite de uma nota; a tarefa foi mantida.'); return; }
+    notes.unshift(note);
+    removeTaskFromOrder(task.id);
+    tasks = tasks.filter(item => String(item.id) !== String(task.id));
+    if ($('detailsDialog').open && String(detailTaskId) === String(task.id)) $('detailsDialog').close();
+    save(false); saveNotes(false); scheduleCloudSync(); render(); renderNotes();
+    setPage('notes');
+    showToast('Tarefa movida para nota.');
   }
   function setTaskTab(tab, resetScroll = true) {
     if (!Object.hasOwn(ORDER_LIST_IDS, tab)) return;
@@ -995,6 +1072,7 @@
         moveTaskInList(taskId, button.dataset.orderList, 1); break;
       case 'move-status':
         moveTaskToStatus(taskId, button.dataset.status); break;
+      case 'move-to-note': moveTaskToNote(taskId); break;
       case 'delete':
         if (!window.confirm(`Excluir “${task.title}”? Essa ação não pode ser desfeita.`)) return;
         if (timer?.taskId === taskId) timer = null;
@@ -1362,13 +1440,10 @@
     try {
       do {
         syncQueued = false;
+        // Upload converted destinations before deleting the source task or its links.
         const currentTasks = clone(tasks);
         const localTaskIds = new Set(currentTasks.map(task => String(task.id)));
         const missingRemoteTasks = Array.from(remoteTaskIds).filter(remoteId => !localTaskIds.has(remoteId));
-        for (const taskId of missingRemoteTasks) {
-          await cloudRequest(`nmm_tasks?id=eq.${encodeURIComponent(taskId)}`, { method:'DELETE' });
-          remoteTaskIds.delete(taskId);
-        }
         if (currentTasks.length) {
           const rows = currentTasks.map(taskToRow);
           await cloudRequest('nmm_tasks?on_conflict=id', {
@@ -1391,18 +1466,22 @@
           created_at:link.createdAt || new Date().toISOString()
         })));
         const localLinkIds = new Set(localLinks.map(row => row.id));
-        for (const linkId of Array.from(remoteLinkIds)) {
-          if (!localLinkIds.has(linkId)) {
-            await cloudRequest(`nmm_task_links?id=eq.${encodeURIComponent(linkId)}`, { method:'DELETE' });
-            remoteLinkIds.delete(linkId);
-          }
-        }
         const newLinks = localLinks.filter(row => !remoteLinkIds.has(row.id));
         if (newLinks.length) {
           await cloudRequest('nmm_task_links', { method:'POST', body:JSON.stringify(newLinks) });
           newLinks.forEach(row => remoteLinkIds.add(row.id));
         }
         await syncNotesToCloud();
+        for (const linkId of Array.from(remoteLinkIds)) {
+          if (!localLinkIds.has(linkId)) {
+            await cloudRequest(`nmm_task_links?id=eq.${encodeURIComponent(linkId)}`, { method:'DELETE' });
+            remoteLinkIds.delete(linkId);
+          }
+        }
+        for (const taskId of missingRemoteTasks) {
+          await cloudRequest(`nmm_tasks?id=eq.${encodeURIComponent(taskId)}`, { method:'DELETE' });
+          remoteTaskIds.delete(taskId);
+        }
         await syncTaskOrderToCloud();
         syncStatusText = `Sincronizado · ${new Date().toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' })}`;
         $('authStatus').textContent = syncStatusText;

@@ -82,7 +82,7 @@
     .note-card { margin:0; }
     .note-heading h3 { margin:0; font-size:1.04rem; overflow-wrap:anywhere; }
     .note-heading time { display:block; margin-top:4px; }
-    .note-actions { display:flex; align-items:center; gap:6px; flex:none; }
+    .note-actions { display:flex; align-items:center; justify-content:flex-end; gap:6px; flex:none; flex-wrap:wrap; max-width:100%; }
     .note-content { margin:0; color:#d1daea; white-space:pre-wrap; overflow-wrap:anywhere; }
     .history-footer { display:flex; justify-content:center; margin-top:12px; }
     .top-actions { display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; }
@@ -446,7 +446,7 @@
           </div>
           <div class="field full">
             <label for="details">Mais detalhes da tarefa <span class="muted">(opcional)</span></label>
-            <textarea id="details" name="details" maxlength="3000" placeholder="Contexto, passos importantes, arquivos envolvidos…"></textarea>
+            <textarea id="details" name="details" maxlength="20200" placeholder="Contexto, passos importantes, arquivos envolvidos…"></textarea>
           </div>
           <div class="field full">
             <span class="label">Já está liberada para você fazer?</span>
@@ -595,7 +595,7 @@
   </dialog>
   <div id="toast" class="toast hidden" role="status"></div>
   <script src="./config.js?v=1" defer></script>
-  <script src="./app.js?v=29" defer></script>
-  <script>if('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('./sw.js?v=36',{updateViaCache:'none'}).then(registration=>registration.update()).catch(()=>{});</script>
+  <script src="./app.js?v=30" defer></script>
+  <script>if('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('./sw.js?v=37',{updateViaCache:'none'}).then(registration=>registration.update()).catch(()=>{});</script>
 </body>
 </html>
