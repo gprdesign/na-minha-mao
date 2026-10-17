@@ -315,9 +315,9 @@
     #tasksPage #listView { display:block; }
     #tasksPage .task-section { display:none; min-width:0; min-height:0; margin:0; padding:0; border:0; }
     #tasksPage .task-section.is-active { display:block; }
-    #tasksPage .list { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); align-items:start; align-content:start; gap:10px; width:100%; max-width:660px; margin:0; padding:0 2px 18px; }
+    #tasksPage .list { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); grid-auto-rows:min(320px,calc((100vw - 50px)/2)); align-items:start; align-content:start; gap:10px; width:100%; max-width:654px; margin:0; padding:0 2px 18px; }
     #tasksPage .list > .empty { grid-column:1 / -1; }
-    #tasksPage .task { display:flex; flex-direction:column; gap:8px; width:100%; min-width:0; min-height:0; aspect-ratio:1 / 1; padding:10px; border-radius:14px; }
+    #tasksPage .task { display:flex; flex-direction:column; gap:8px; width:100%; height:min(320px,calc((100vw - 50px)/2)); min-width:0; min-height:0; padding:10px; border-radius:14px; }
     #tasksPage .task-top { display:flex; flex:1; align-items:flex-start; min-height:0; gap:6px; overflow:hidden; }
     #tasksPage .task-drag-handle { position:static; flex:none; width:25px; height:30px; }
     #tasksPage .task-main { min-width:0; flex:1; }
@@ -335,8 +335,8 @@
     body.tasks-screen .wrap { padding-bottom:calc(140px + env(safe-area-inset-bottom,0px)); }
     body.tasks-screen #tasksPage #listView { display:flex; flex:1; min-height:0; overflow:hidden; }
     body.tasks-screen #tasksPage .task-section.is-active { display:flex; flex:1; flex-direction:column; min-height:0; }
-    body.tasks-screen #tasksPage .task-section .list { flex:1; min-height:0; overflow-y:auto; }
-    body.tasks-screen #tasksPage .task { padding:10px; gap:8px; }
+    body.tasks-screen #tasksPage .task-section .list { grid-auto-rows:min(320px,calc((100vw - 50px)/2)); flex:1; min-height:0; overflow-y:auto; }
+    body.tasks-screen #tasksPage .task { height:min(320px,calc((100vw - 50px)/2)); padding:10px; gap:8px; }
     body.tasks-screen #tasksPage .task-top { display:flex; }
     body.tasks-screen #tasksPage .task-title { -webkit-line-clamp:3; min-height:2.4em; font-size:clamp(.78rem,1.7vw,1rem); line-height:1.2; }
     body.tasks-screen #tasksPage .task-drag-handle { position:static; }
@@ -348,9 +348,10 @@
       .task-subnav { bottom:calc(82px + env(safe-area-inset-bottom,0px)); width:calc(100% - 24px); gap:3px; padding:4px; }
       .task-tab { min-height:43px; padding:5px 2px; font-size:.68rem; }
       .task-tab-count { font-size:.64rem; }
-      #tasksPage .list { gap:8px; padding-bottom:14px; }
-      #tasksPage .task { gap:5px; padding:8px; }
-      body.tasks-screen #tasksPage .task { gap:5px; padding:8px; }
+      #tasksPage .list { grid-auto-rows:min(320px,calc((100vw - 38px)/2)); gap:8px; padding-bottom:14px; }
+      body.tasks-screen #tasksPage .task-section .list { grid-auto-rows:min(320px,calc((100vw - 30px)/2)); }
+      #tasksPage .task { height:min(320px,calc((100vw - 38px)/2)); gap:5px; padding:8px; }
+      body.tasks-screen #tasksPage .task { height:min(320px,calc((100vw - 30px)/2)); gap:5px; padding:8px; }
       #tasksPage .task-drag-handle { width:21px; height:25px; }
       #tasksPage .task-menu > summary { width:26px; height:28px; }
       #tasksPage .task-title { font-size:.78rem; line-height:1.18; }
