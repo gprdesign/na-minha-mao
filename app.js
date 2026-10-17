@@ -491,6 +491,7 @@
       $(metric.share).textContent = `${percent}% do total`;
     });
     $('doneCount').textContent = done.length;
+    $('clearCompletedBtn').disabled = done.length === 0;
     $('estimateTotal').textContent = formatMinutes(active.reduce((sum,t) => sum + (Number(t.estimateMinutes)||0), 0));
     $('activeList').innerHTML = active.length ? active.map((t,index) => renderTask(t,false,'active',index,active.length)).join('') : '<div class="empty">Nenhuma tarefa liberada por enquanto.</div>';
     $('reviewList').innerHTML = review.length ? review.map((t,index) => renderTask(t,false,'review',index,review.length)).join('') : '<div class="empty">Nenhuma tarefa aguardando aprovação do cliente.</div>';
@@ -1080,6 +1081,26 @@
         tasks = tasks.filter(t => t.id !== taskId); save(); render(); showToast('Tarefa excluída.'); break;
     }
   }
+  function clearCompletedTasks() {
+    const completed = tasks.filter(task => Boolean(task.completedAt));
+    if (!completed.length) return;
+    const count = completed.length;
+    const noun = count === 1 ? 'tarefa concluída' : 'tarefas concluídas';
+    if (!window.confirm(`Apagar definitivamente ${count} ${noun}? Essa ação não pode ser desfeita.`)) return;
+    const completedIds = new Set(completed.map(task => String(task.id)));
+    if (timer?.taskId && completedIds.has(String(timer.taskId))) { if (timer.startedAt) pauseTimer(); timer = null; }
+    const nextOrder = normalizeTaskOrder(taskOrder);
+    let orderChanged = false;
+    TASK_ORDER_KEYS.forEach(key => {
+      const remaining = nextOrder[key].filter(taskId => !completedIds.has(String(taskId)));
+      if (remaining.length !== nextOrder[key].length) orderChanged = true;
+      nextOrder[key] = remaining;
+    });
+    if (orderChanged) persistTaskOrder(nextOrder, nextTaskOrderTimestamp());
+    tasks = tasks.filter(task => !task.completedAt);
+    save(); render();
+    showToast(count === 1 ? '1 tarefa concluída removida.' : `${count} tarefas concluídas removidas.`);
+  }
   function onSubmitTask(event) {
     event.preventDefault();
     const form = event.currentTarget;
@@ -1601,6 +1622,7 @@
   $('newBtn').addEventListener('click', openNewForm);
   $('closeFormBtn').addEventListener('click', closeForm);
   $('taskForm').addEventListener('submit', onSubmitTask);
+  $('clearCompletedBtn').addEventListener('click', clearCompletedTasks);
   $('newNoteBtn').addEventListener('click', openNewNote);
   $('noteForm').addEventListener('submit', onSubmitNote);
   $('closeNoteFormBtn').addEventListener('click', closeNoteForm);
