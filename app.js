@@ -38,6 +38,7 @@
   localStorage.removeItem('naMinhaMao.view');
   const storedPage = localStorage.getItem('naMinhaMao.page');
   let currentPage = ['home','tasks','notes','settings'].includes(storedPage) ? storedPage : 'home';
+  let currentTaskTab = 'active';
   let toastTimeout;
   let syncTimeout;
   let syncInFlight = false;
@@ -236,9 +237,9 @@
     localStorage.setItem(SESSION_KEY, JSON.stringify(session));
   }
   const TASK_STATUS_OPTIONS = [
-    { id:'active', orderKey:'active', label:'Na sua mão' },
-    { id:'client_review', orderKey:'review', label:'Com o cliente' },
-    { id:'waiting', orderKey:'waiting', label:'Caixa de entrada' }
+    { id:'active', orderKey:'active', label:'Liberado' },
+    { id:'client_review', orderKey:'review', label:'Aprovando' },
+    { id:'waiting', orderKey:'waiting', label:'Entrada' }
   ];
   function orderKeyForStatus(status) {
     return TASK_STATUS_OPTIONS.find(option => option.id === status)?.orderKey || null;
@@ -328,8 +329,7 @@
     if (targetStatus !== 'waiting' && !task.releaseDate) task.releaseDate = todayKey();
     recordHistory(task, `Movida manualmente para ${targetOption.label}`);
     save(); render();
-    const targetSection = $(ORDER_LIST_IDS[targetOption.orderKey])?.closest('details');
-    if (targetSection) targetSection.open = true;
+    setTaskTab(targetOption.orderKey);
     if ($('detailsDialog').open && String(detailTaskId) === String(taskId)) renderDetails();
     showToast(`Movida para ${targetOption.label}.`);
   }
@@ -414,10 +414,7 @@
     }
     draggedTaskId = null; draggedOrderList = null; draggedDropPosition = null;
     render();
-    if (statusChanged) {
-      const targetSection = $(ORDER_LIST_IDS[listKey])?.closest('details');
-      if (targetSection) targetSection.open = true;
-    }
+    if (statusChanged) setTaskTab(listKey);
     const statusLabel = TASK_STATUS_OPTIONS.find(option => option.id === targetStatus)?.label;
     showToast(statusChanged ? `Movida para ${statusLabel}. ${manualOrderToast()}` : manualOrderToast());
   }
@@ -497,7 +494,7 @@
     $('estimateTotal').textContent = formatMinutes(active.reduce((sum,t) => sum + (Number(t.estimateMinutes)||0), 0));
     $('activeList').innerHTML = active.length ? active.map((t,index) => renderTask(t,false,'active',index,active.length)).join('') : '<div class="empty">Nenhuma tarefa liberada por enquanto.</div>';
     $('reviewList').innerHTML = review.length ? review.map((t,index) => renderTask(t,false,'review',index,review.length)).join('') : '<div class="empty">Nenhuma tarefa aguardando aprovação do cliente.</div>';
-    $('waitingList').innerHTML = waiting.length ? waiting.map((t,index) => renderTask(t,false,'waiting',index,waiting.length)).join('') : '<div class="empty">Caixa de entrada vazia por enquanto.</div>';
+    $('waitingList').innerHTML = waiting.length ? waiting.map((t,index) => renderTask(t,false,'waiting',index,waiting.length)).join('') : '<div class="empty">Entrada vazia por enquanto.</div>';
     $('doneList').innerHTML = done.length ? done.map((t,index) => renderTask(t,true,'done',index,done.length)).join('') : '<div class="empty">As tarefas concluídas aparecem aqui.</div>';
     renderHistory();
     applyPageMode();
@@ -680,68 +677,26 @@
       saveNotes(); renderNotes(); showToast('Nota excluída.');
     }
   }
-  function clearTaskGalleryFit() {
-    document.querySelectorAll('#tasksPage .list').forEach(list => {
-      list.style.removeProperty('grid-template-columns');
-      list.style.removeProperty('grid-template-rows');
-      list.style.removeProperty('grid-auto-flow');
-      list.classList.remove('gallery-tight');
+  function setTaskTab(tab, resetScroll = true) {
+    if (!Object.hasOwn(ORDER_LIST_IDS, tab)) return;
+    currentTaskTab = tab;
+    document.querySelectorAll('.task-tab[data-task-tab]').forEach(button => {
+      button.setAttribute('aria-pressed', String(button.dataset.taskTab === tab));
     });
-    $('listView')?.classList.remove('done-open');
-    $('listView')?.style.removeProperty('grid-template-rows');
-  }
-  function fitTaskGallery() {
-    if (!document.body.classList.contains('tasks-screen')) { clearTaskGalleryFit(); return; }
-    const doneSection = $('doneList').closest('details');
-    const listView = $('listView');
-    const doneOpen = Boolean(doneSection?.open);
-    listView.classList.toggle('done-open', doneOpen);
-    if (landscapeTaskQuery.matches) listView.style.gridTemplateRows = doneOpen ? 'auto minmax(0,1fr)' : 'minmax(0,1fr) auto';
-    else listView.style.gridTemplateRows = Array.from(listView.children).filter(item => item.matches('details')).map(section => section.open ? 'minmax(0,1fr)' : 'auto').join(' ');
-    document.querySelectorAll('#tasksPage .list').forEach(list => {
-      const section = list.closest('details');
-      if (section && !section.open) {
-        list.style.removeProperty('grid-template-columns');
-        list.style.removeProperty('grid-template-rows');
-        list.style.removeProperty('grid-auto-flow');
-        list.classList.remove('gallery-tight');
-        return;
-      }
-      const count = Array.from(list.children).filter(item => item.classList.contains('task')).length;
-      const height = list.clientHeight;
-      if (!count || height < 1) {
-        list.style.removeProperty('grid-template-columns');
-        list.style.removeProperty('grid-template-rows');
-        list.style.removeProperty('grid-auto-flow');
-        list.classList.remove('gallery-tight');
-        return;
-      }
-      const gap = 5;
-      const rows = Math.ceil(count / 2);
-      const rowHeight = Math.max(1, Math.min(94, (height - gap * (rows - 1)) / rows));
-      list.style.gridTemplateColumns = 'repeat(2,minmax(0,1fr))';
-      list.style.gridTemplateRows = `repeat(${rows},${rowHeight}px)`;
-      list.style.gridAutoFlow = 'row';
-      list.classList.toggle('gallery-tight', rowHeight < 80);
+    document.querySelectorAll('#listView > [data-task-section]').forEach(section => {
+      const active = section.dataset.taskSection === tab;
+      section.classList.toggle('hidden', !active);
+      section.classList.toggle('is-active', active);
+      section.setAttribute('aria-hidden', String(!active));
     });
-  }
-
-  function handleTaskSectionToggle(event) {
-    const section = event.target;
-    if (!section.matches?.('#listView > details')) { scheduleTaskGalleryFit(); return; }
-    const sections = Array.from(document.querySelectorAll('#listView > details'));
-    if (section.open) sections.forEach(other => { if (other !== section) other.open = false; });
-    else if (!sections.some(other => other.open)) section.open = true;
-    scheduleTaskGalleryFit();
-  }
-  function scheduleTaskGalleryFit() {
-    if (document.body.classList.contains('tasks-screen')) requestAnimationFrame(fitTaskGallery);
+    if (resetScroll) {
+      const list = $(ORDER_LIST_IDS[tab]);
+      if (list) list.scrollTop = 0;
+    }
   }
   function updateTaskScreenMode() {
     const compact = currentPage === 'tasks' && $('formPanel').classList.contains('hidden');
     document.body.classList.toggle('tasks-screen', compact);
-    if (compact) scheduleTaskGalleryFit();
-    else clearTaskGalleryFit();
   }
   function applyPageMode() {
     const views = { home:'homePage', tasks:'tasksPage', notes:'notesPage', settings:'settingsPage' };
@@ -757,35 +712,21 @@
     currentPage = page;
     localStorage.setItem('naMinhaMao.page', currentPage);
     applyPageMode();
-    if (currentPage === 'tasks') applyViewMode();
+    if (currentPage === 'tasks') setTaskTab(currentTaskTab, false);
     if (currentPage === 'notes') renderNotes();
   }
-  const landscapeTaskQuery = window.matchMedia('(orientation: landscape)');
-  function updateTaskColumns() {
-    const sections = Array.from(document.querySelectorAll('#listView > details'));
-    const openSection = sections.find(section => section.open) || sections[0];
-    sections.forEach(section => { section.open = section === openSection; });
-    scheduleTaskGalleryFit();
-  }
-  if (landscapeTaskQuery.addEventListener) landscapeTaskQuery.addEventListener('change', updateTaskColumns);
-  else landscapeTaskQuery.addListener(updateTaskColumns);
-  updateTaskColumns();
   function openDashboardStatus(status) {
-    const listId = { active:'activeList', review:'reviewList', waiting:'waitingList', done:'doneList' }[status];
-    const list = listId ? $(listId) : null;
-    if (!list) return;
+    if (!Object.hasOwn(ORDER_LIST_IDS, status)) return;
     currentPage = 'tasks';
     localStorage.setItem('naMinhaMao.page', currentPage);
     applyPageMode();
-    const section = list.closest('details');
-    if (section) section.open = true;
-    requestAnimationFrame(() => (section || list).scrollIntoView({ behavior:'smooth', block:'start' }));
+    setTaskTab(status);
   }
   function openTaskInList(taskId) {
     const task = tasks.find(item => String(item.id) === String(taskId) && !item.completedAt);
     if (!task) { showToast('Essa tarefa não está mais disponível para abrir.'); return; }
     setPage('tasks');
-    setView('list');
+    setTaskTab(orderKeyForStatus(task.status) || 'active');
     requestAnimationFrame(() => {
       const target = Array.from(document.querySelectorAll('#listView .task[data-task]')).find(node => node.dataset.task === String(taskId));
       if (!target) return;
@@ -844,7 +785,7 @@
     $('detailDescription').textContent = task.details || 'Nenhum detalhe adicional cadastrado.';
     renderSubtasks(task);
     const age = daysSince(task.releaseDate);
-    const statusLabel = task.completedAt ? 'Concluída' : ({ active:'A bola tá contigo!!', client_review:'Passe perfeito pro cliente! Vamos esperar...', waiting:'Caixa de entrada — ideias, briefing e orçamento' }[task.status] || 'Status não informado');
+    const statusLabel = task.completedAt ? 'Concluído' : ({ active:'Liberado', client_review:'Aprovando', waiting:'Entrada' }[task.status] || 'Status não informado');
     const releaseLabel = task.status === 'waiting'
       ? 'Ainda não liberada'
       : (task.releaseDate ? `${age === 0 ? 'Liberada hoje' : `Liberada há ${age} ${age === 1 ? 'dia' : 'dias'}`} · ${formatDate(task.releaseDate)}` : 'Data de liberação não registrada');
@@ -1561,6 +1502,10 @@
     const button = event.target.closest('button[data-page]');
     if (button) setPage(button.dataset.page);
   });
+  $('taskSubnav').addEventListener('click', event => {
+    const button = event.target.closest('button[data-task-tab]');
+    if (button) setTaskTab(button.dataset.taskTab);
+  });
   $('nextTaskContent').addEventListener('click', event => {
     const button = event.target.closest('button[data-open-task]');
     if (button) openTaskInList(button.dataset.openTask);
@@ -1604,8 +1549,6 @@
     $(id).addEventListener('dragstart', handleTaskDragStart);
   });
   $('listView').addEventListener('dragover', handleTaskDragOver);
-  $('listView').addEventListener('toggle', handleTaskSectionToggle, true);
-  window.addEventListener('resize', scheduleTaskGalleryFit);
   $('listView').addEventListener('drop', handleTaskDrop);
   document.addEventListener('dragend', handleTaskDragEnd);
   $('detailsDialog').addEventListener('click', handleListAction);

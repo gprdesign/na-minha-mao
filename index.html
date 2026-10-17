@@ -307,6 +307,59 @@
       body.tasks-screen #tasksPage .task-title { font-size:.76rem; }
       body.tasks-screen #tasksPage .list.gallery-tight .task-title { font-size:.70rem; }
     }
+    .task-subnav { position:fixed; z-index:21; left:50%; bottom:calc(70px + env(safe-area-inset-bottom,0px)); transform:translateX(-50%); width:min(760px,calc(100% - 28px)); display:flex; gap:4px; padding:5px; border:1px solid #394663; border-radius:14px; background:#111827ee; backdrop-filter:blur(14px); box-shadow:0 10px 28px #0008; }
+    .task-tab { flex:1; min-width:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; padding:6px 3px; border:0; border-radius:9px; background:transparent; color:var(--muted); font:inherit; font-size:.78rem; font-weight:700; line-height:1.1; }
+    .task-tab:hover { background:#202b42; color:var(--text); }
+    .task-tab[aria-pressed="true"] { background:#202b42; color:var(--text); box-shadow:inset 0 0 0 1px #8bafff66; }
+    .task-tab-count { color:var(--accent); font-size:.7rem; font-variant-numeric:tabular-nums; }
+    #tasksPage #listView { display:block; }
+    #tasksPage .task-section { display:none; min-width:0; min-height:0; margin:0; padding:0; border:0; }
+    #tasksPage .task-section.is-active { display:block; }
+    #tasksPage .list { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); align-items:start; align-content:start; gap:10px; width:100%; max-width:660px; margin:0; padding:0 2px 18px; }
+    #tasksPage .list > .empty { grid-column:1 / -1; }
+    #tasksPage .task { display:flex; flex-direction:column; gap:8px; width:100%; min-width:0; min-height:0; aspect-ratio:1 / 1; padding:10px; border-radius:14px; }
+    #tasksPage .task-top { display:flex; flex:1; align-items:flex-start; min-height:0; gap:6px; overflow:hidden; }
+    #tasksPage .task-drag-handle { position:static; flex:none; width:25px; height:30px; }
+    #tasksPage .task-main { min-width:0; flex:1; }
+    #tasksPage .task-title { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:3; min-height:2.4em; overflow:hidden; font-size:clamp(.78rem,1.7vw,1rem); line-height:1.2; }
+    #tasksPage .task-summary { gap:3px; margin-top:7px; }
+    #tasksPage .task-release { display:flex; flex-direction:column; align-items:flex-start; gap:2px; font-size:.72rem; }
+    #tasksPage .task-release-date { font-size:.68rem; }
+    #tasksPage .task-menu { position:relative; top:auto; right:auto; flex:none; }
+    #tasksPage .task-menu > summary { width:30px; height:30px; }
+    #tasksPage .task-menu-popover { z-index:30; }
+    #tasksPage .task-actions { position:static; width:100%; margin:0; margin-top:auto; }
+    #tasksPage .task-actions .btn { display:block; width:100%; min-width:0; height:auto; min-height:32px; padding:5px 4px; font-size:.74rem; }
+    #tasksPage .task-actions .btn::before { content:none; }
+    #tasksPage .task-section .list { overflow-y:auto; overscroll-behavior:contain; }
+    body.tasks-screen .wrap { padding-bottom:calc(140px + env(safe-area-inset-bottom,0px)); }
+    body.tasks-screen #tasksPage #listView { display:flex; flex:1; min-height:0; overflow:hidden; }
+    body.tasks-screen #tasksPage .task-section.is-active { display:flex; flex:1; flex-direction:column; min-height:0; }
+    body.tasks-screen #tasksPage .task-section .list { flex:1; min-height:0; overflow-y:auto; }
+    body.tasks-screen #tasksPage .task { padding:10px; gap:8px; }
+    body.tasks-screen #tasksPage .task-top { display:flex; }
+    body.tasks-screen #tasksPage .task-title { -webkit-line-clamp:3; min-height:2.4em; font-size:clamp(.78rem,1.7vw,1rem); line-height:1.2; }
+    body.tasks-screen #tasksPage .task-drag-handle { position:static; }
+    body.tasks-screen #tasksPage .task-menu { position:relative; top:auto; right:auto; }
+    body.tasks-screen #tasksPage .task-actions { position:static; margin-top:auto; }
+    body.tasks-screen #tasksPage .task-actions .btn { display:block; width:100%; min-width:0; height:auto; min-height:32px; padding:5px 4px; font-size:.74rem; }
+    body.tasks-screen #tasksPage .task-actions .btn::before { content:none; }
+    @media(max-width:650px) {
+      .task-subnav { bottom:calc(82px + env(safe-area-inset-bottom,0px)); width:calc(100% - 24px); gap:3px; padding:4px; }
+      .task-tab { min-height:43px; padding:5px 2px; font-size:.68rem; }
+      .task-tab-count { font-size:.64rem; }
+      #tasksPage .list { gap:8px; padding-bottom:14px; }
+      #tasksPage .task { gap:5px; padding:8px; }
+      body.tasks-screen #tasksPage .task { gap:5px; padding:8px; }
+      #tasksPage .task-drag-handle { width:21px; height:25px; }
+      #tasksPage .task-menu > summary { width:26px; height:28px; }
+      #tasksPage .task-title { font-size:.78rem; line-height:1.18; }
+      body.tasks-screen #tasksPage .task-title { font-size:.78rem; line-height:1.18; }
+      #tasksPage .task-release { font-size:.67rem; }
+      #tasksPage .task-release-date { font-size:.62rem; }
+      #tasksPage .task-actions .btn { min-height:30px; padding:4px 2px; font-size:.68rem; }
+      body.tasks-screen #tasksPage .task-actions .btn { min-height:30px; padding:4px 2px; font-size:.68rem; }
+    }
     @media(prefers-reduced-motion:reduce) { .next-task-card,.task-target-highlight,.history-target-highlight { animation:none; } }
   </style>
 </head>
@@ -350,28 +403,28 @@
         <span class="muted" id="homeTotalText">0 tarefas</span>
       </div>
       <section class="dashboard-grid" aria-label="Status geral das tarefas">
-        <button class="dashboard-card tone-active" type="button" data-dashboard-status="active" aria-label="Ver tarefas na sua mão">
-          <span class="dashboard-label">Na sua mão</span><strong class="dashboard-count" id="activeCount">0</strong>
-          <span class="progress-track" id="homeActiveProgress" role="progressbar" aria-label="Na sua mão" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span id="homeActiveBar"></span></span>
+        <button class="dashboard-card tone-active" type="button" data-dashboard-status="active" aria-label="Ver tarefas liberadas">
+          <span class="dashboard-label">Liberado</span><strong class="dashboard-count" id="activeCount">0</strong>
+          <span class="progress-track" id="homeActiveProgress" role="progressbar" aria-label="Liberado" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span id="homeActiveBar"></span></span>
           <span class="dashboard-share" id="homeActiveShare">0% do total</span>
         </button>
-        <button class="dashboard-card tone-review" type="button" data-dashboard-status="review" aria-label="Ver tarefas com o cliente">
-          <span class="dashboard-label">Com o cliente</span><strong class="dashboard-count" id="reviewCount">0</strong>
-          <span class="progress-track" id="homeReviewProgress" role="progressbar" aria-label="Com o cliente" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span id="homeReviewBar"></span></span>
+        <button class="dashboard-card tone-review" type="button" data-dashboard-status="review" aria-label="Ver tarefas em aprovação">
+          <span class="dashboard-label">Aprovando</span><strong class="dashboard-count" id="reviewCount">0</strong>
+          <span class="progress-track" id="homeReviewProgress" role="progressbar" aria-label="Aprovando" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span id="homeReviewBar"></span></span>
           <span class="dashboard-share" id="homeReviewShare">0% do total</span>
         </button>
-        <button class="dashboard-card tone-waiting" type="button" data-dashboard-status="waiting" aria-label="Ver tarefas aguardando liberação">
-          <span class="dashboard-label">Aguardando liberação</span><strong class="dashboard-count" id="waitingCount">0</strong>
-          <span class="progress-track" id="homeWaitingProgress" role="progressbar" aria-label="Aguardando liberação" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span id="homeWaitingBar"></span></span>
+        <button class="dashboard-card tone-waiting" type="button" data-dashboard-status="waiting" aria-label="Ver tarefas de entrada">
+          <span class="dashboard-label">Entrada</span><strong class="dashboard-count" id="waitingCount">0</strong>
+          <span class="progress-track" id="homeWaitingProgress" role="progressbar" aria-label="Entrada" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span id="homeWaitingBar"></span></span>
           <span class="dashboard-share" id="homeWaitingShare">0% do total</span>
         </button>
         <button class="dashboard-card tone-done" type="button" data-dashboard-status="done" aria-label="Ver tarefas concluídas">
-          <span class="dashboard-label">Concluídas</span><strong class="dashboard-count" id="homeDoneCount">0</strong>
-          <span class="progress-track" id="homeDoneProgress" role="progressbar" aria-label="Concluídas" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span id="homeDoneBar"></span></span>
+          <span class="dashboard-label">Concluído</span><strong class="dashboard-count" id="homeDoneCount">0</strong>
+          <span class="progress-track" id="homeDoneProgress" role="progressbar" aria-label="Concluído" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span id="homeDoneBar"></span></span>
           <span class="dashboard-share" id="homeDoneShare">0% do total</span>
         </button>
       </section>
-      <button class="home-summary" type="button" data-dashboard-status="active" aria-label="Ver tarefas na sua mão"><span>Tempo estimado de trabalho 💪🏼</span><strong id="estimateTotal">0 min</strong></button>
+      <button class="home-summary" type="button" data-dashboard-status="active" aria-label="Ver tarefas liberadas"><span>Tempo estimado de trabalho 💪🏼</span><strong id="estimateTotal">0 min</strong></button>
       <section class="panel home-history" aria-labelledby="historyTitle">
         <div class="panel-head"><div><p class="eyebrow">ATIVIDADE</p><h2 id="historyTitle">Histórico de alterações</h2></div></div>
         <div id="homeHistoryList" class="history-list" aria-live="polite"></div>
@@ -422,23 +475,25 @@
       </form>
     </section>
 
-    <div id="listView">
-      <details class="task-section" open>
-        <summary class="section-summary"><span class="section-index">[1/3]</span><h2>A bola tá contigo!!</h2><span class="section-count" id="activeListCount">0</span></summary>
+    <nav class="task-subnav" id="taskSubnav" aria-label="Categorias das tarefas">
+      <button class="task-tab" type="button" data-task-tab="active" aria-pressed="true"><span class="task-tab-label">Liberado</span><span class="task-tab-count" id="activeListCount">0</span></button>
+      <button class="task-tab" type="button" data-task-tab="review" aria-pressed="false"><span class="task-tab-label">Aprovando</span><span class="task-tab-count" id="reviewListCount">0</span></button>
+      <button class="task-tab" type="button" data-task-tab="waiting" aria-pressed="false"><span class="task-tab-label">Entrada</span><span class="task-tab-count" id="waitingListCount">0</span></button>
+      <button class="task-tab" type="button" data-task-tab="done" aria-pressed="false"><span class="task-tab-label">Concluído</span><span class="task-tab-count" id="doneCount">0</span></button>
+    </nav>
+    <div id="listView" class="task-pages">
+      <section class="task-section is-active" data-task-section="active" aria-label="Liberado">
         <section class="list" id="activeList" aria-live="polite"></section>
-      </details>
-      <details class="task-section">
-        <summary class="section-summary"><span class="section-index">[2/3]</span><h2>Passe perfeito pro cliente! Vamos esperar...</h2><span class="section-count" id="reviewListCount">0</span></summary>
+      </section>
+      <section class="task-section hidden" data-task-section="review" aria-label="Aprovando">
         <section class="list" id="reviewList" aria-live="polite"></section>
-      </details>
-      <details class="task-section">
-        <summary class="section-summary"><span class="section-index">[3/3]</span><h2>Caixa de entrada — ideias, briefing e orçamento</h2><span class="section-count" id="waitingListCount">0</span></summary>
+      </section>
+      <section class="task-section hidden" data-task-section="waiting" aria-label="Entrada">
         <section class="list" id="waitingList" aria-live="polite"></section>
-      </details>
-      <details class="done-section" style="margin-top:24px">
-        <summary class="muted" style="cursor:pointer">Concluídas (<span id="doneCount">0</span>)</summary>
-        <section class="list" id="doneList" style="margin-top:11px"></section>
-      </details>
+      </section>
+      <section class="task-section done-section hidden" data-task-section="done" aria-label="Concluído">
+        <section class="list" id="doneList" aria-live="polite"></section>
+      </section>
     </div>
     </section>
     <section id="notesPage" class="page-view hidden" aria-label="Notas">
@@ -539,7 +594,7 @@
   </dialog>
   <div id="toast" class="toast hidden" role="status"></div>
   <script src="./config.js?v=1" defer></script>
-  <script src="./app.js?v=28" defer></script>
-  <script>if('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('./sw.js?v=34',{updateViaCache:'none'}).then(registration=>registration.update()).catch(()=>{});</script>
+  <script src="./app.js?v=29" defer></script>
+  <script>if('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('./sw.js?v=35',{updateViaCache:'none'}).then(registration=>registration.update()).catch(()=>{});</script>
 </body>
 </html>
