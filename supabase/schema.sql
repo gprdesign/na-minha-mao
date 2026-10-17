@@ -10,6 +10,7 @@ create table if not exists public.nmm_tasks (
   status text not null check (status in ('active', 'waiting', 'client_review')),
   release_date date,
   due_date date,
+  execution_date date,
   estimate_minutes integer not null default 60 check (estimate_minutes >= 5),
   reward text not null default '',
   blocker text not null default '',

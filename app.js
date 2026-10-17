@@ -75,7 +75,7 @@
     const area = hadArea ? task.area : 'inbox';
     const options = TASK_AREA_CATEGORIES[area] || [];
     const category = area === 'inbox' ? null : (options.includes(task.category) ? task.category : options[0]);
-    return { ...task, area, category, categoryUpdatedAt:task.categoryUpdatedAt || null };
+    return { ...task, executionDate:task.executionDate || null, area, category, categoryUpdatedAt:task.categoryUpdatedAt || null };
   }
   function taskCategoryKey(task) {
     const normalized = normalizeTaskClassification(task);
@@ -796,7 +796,7 @@
     if (!window.confirm(`Mover “${note.title || title}” para uma tarefa liberada hoje? O texto irá para os detalhes e a nota será removida.`)) return;
     const now = new Date().toISOString();
     const task = {
-      id:id(), title, details, comments:[], links:[], status:'active', area:'inbox', category:null, categoryUpdatedAt:now, releaseDate:todayKey(), dueDate:null,
+      id:id(), title, details, comments:[], links:[], status:'active', area:'inbox', category:null, categoryUpdatedAt:now, releaseDate:todayKey(), dueDate:null, executionDate:null,
       estimateMinutes:60, reward:'', blocker:'', timeSpentSeconds:0, createdAt:now, completedAt:null, completedDate:null, subtasks:[]
     };
     recordHistory(task, 'Convertida de nota em tarefa', now);
@@ -1291,7 +1291,7 @@
     }
     const task = {
       id:id(), title, details: String(data.get('details')||'').trim(), comments: [], links: [], status: ready ? 'active' : 'waiting', area:'inbox', category:null, categoryUpdatedAt:new Date().toISOString(),
-      releaseDate: ready ? todayKey() : null, dueDate: ready ? (String(data.get('dueDate')||'') || null) : null,
+      releaseDate: ready ? todayKey() : null, dueDate: ready ? (String(data.get('dueDate')||'') || null) : null, executionDate:null,
       estimateMinutes: estimate, reward: ready ? String(data.get('reward')||'').trim() : '',
       blocker: ready ? '' : String(data.get('blocker')||'').trim(), timeSpentSeconds: 0,
       createdAt: new Date().toISOString(), completedAt: null, subtasks: []
@@ -1405,7 +1405,7 @@
   function taskToRow(task) {
     return {
       id:String(task.id), owner_id:session.user.id, title:task.title, details:task.details || '', status:task.status,
-      release_date:task.releaseDate || null, due_date:task.dueDate || null, estimate_minutes:Number(task.estimateMinutes) || 60,
+      release_date:task.releaseDate || null, due_date:task.dueDate || null, execution_date:task.executionDate || null, estimate_minutes:Number(task.estimateMinutes) || 60,
       reward:task.reward || '', blocker:task.blocker || '', time_spent_seconds:Number(task.timeSpentSeconds) || 0,
       created_at:task.createdAt || new Date().toISOString(), completed_at:task.completedAt || null,
       completed_date:task.completedDate || null, subtasks:Array.isArray(task.subtasks) ? task.subtasks : []
@@ -1414,7 +1414,7 @@
   function rowToTask(row) {
     return {
       id:String(row.id), title:row.title, details:row.details || '', status:row.status,
-      releaseDate:row.release_date || null, dueDate:row.due_date || null, estimateMinutes:Number(row.estimate_minutes) || 60,
+      releaseDate:row.release_date || null, dueDate:row.due_date || null, executionDate:row.execution_date || null, estimateMinutes:Number(row.estimate_minutes) || 60,
       reward:row.reward || '', blocker:row.blocker || '', timeSpentSeconds:Number(row.time_spent_seconds) || 0,
       createdAt:row.created_at || new Date().toISOString(), completedAt:row.completed_at || null,
       completedDate:row.completed_date || null, comments:[], links:[], subtasks:Array.isArray(row.subtasks) ? row.subtasks : []
