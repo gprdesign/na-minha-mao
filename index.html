@@ -322,6 +322,7 @@
     .task-subnav { position:fixed; z-index:21; left:50%; bottom:calc(70px + env(safe-area-inset-bottom,0px)); transform:translateX(-50%); width:min(760px,calc(100% - 28px)); display:flex; gap:4px; padding:5px; border:1px solid #394663; border-radius:14px; background:#111827ee; backdrop-filter:blur(14px); box-shadow:0 10px 28px #0008; }
     .task-category-nav { bottom:calc(126px + env(safe-area-inset-bottom,0px)); z-index:22; }
     .task-tab { flex:1; min-width:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; padding:6px 3px; border:0; border-radius:9px; background:transparent; color:var(--muted); font:inherit; font-size:.78rem; font-weight:700; line-height:1.1; }
+    #taskCategoryNav .task-tab[hidden] { display:none; }
     .task-tab:hover { background:#202b42; color:var(--text); }
     .task-tab[aria-pressed="true"] { background:#202b42; color:var(--text); box-shadow:inset 0 0 0 1px #8bafff66; }
     .task-tab-count { color:var(--accent); font-size:.7rem; font-variant-numeric:tabular-nums; }
@@ -634,7 +635,7 @@
   </dialog>
   <div id="toast" class="toast hidden" role="status"></div>
   <script src="./config.js?v=1" defer></script>
-  <script src="./app.js?v=33" defer></script>
-  <script>if('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('./sw.js?v=41',{updateViaCache:'none'}).then(registration=>registration.update()).catch(()=>{});</script>
+  <script src="./app.js?v=34" defer></script>
+  <script>if('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('./sw.js?v=42',{updateViaCache:'none'}).then(registration=>registration.update()).catch(()=>{});</script>
 </body>
 </html>
