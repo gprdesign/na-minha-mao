@@ -318,7 +318,7 @@
     #tasksPage .list { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); grid-auto-rows:min(320px,calc((100vw - 50px)/2)); align-items:start; align-content:start; gap:10px; width:100%; max-width:654px; margin:0; padding:0 2px 18px; }
     #tasksPage .list > .empty { grid-column:1 / -1; }
     #tasksPage .task { display:flex; flex-direction:column; gap:8px; width:100%; height:min(320px,calc((100vw - 50px)/2)); min-width:0; min-height:0; padding:10px; border-radius:14px; }
-    #tasksPage .task-top { display:flex; flex:1; align-items:flex-start; min-height:0; gap:6px; overflow:hidden; }
+    #tasksPage .task-top { display:flex; flex:1; align-items:flex-start; min-height:0; gap:6px; overflow:visible; }
     #tasksPage .task-drag-handle { position:static; flex:none; width:25px; height:30px; }
     #tasksPage .task-main { min-width:0; flex:1; }
     #tasksPage .task-title { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:3; min-height:2.4em; overflow:hidden; font-size:clamp(.78rem,1.7vw,1rem); line-height:1.2; }
@@ -326,6 +326,8 @@
     #tasksPage .task-release { display:flex; flex-direction:column; align-items:flex-start; gap:2px; font-size:.72rem; }
     #tasksPage .task-release-date { font-size:.68rem; }
     #tasksPage .task-menu { position:relative; top:auto; right:auto; flex:none; }
+    #tasksPage .task:focus-within { position:relative; z-index:50; }
+    #tasksPage .task:has(.task-menu[open]) { position:relative; z-index:50; }
     #tasksPage .task-menu > summary { width:30px; height:30px; }
     #tasksPage .task-menu-popover { z-index:30; }
     #tasksPage .task-actions { position:static; width:100%; margin:0; margin-top:auto; }
@@ -596,6 +598,6 @@
   <div id="toast" class="toast hidden" role="status"></div>
   <script src="./config.js?v=1" defer></script>
   <script src="./app.js?v=30" defer></script>
-  <script>if('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('./sw.js?v=37',{updateViaCache:'none'}).then(registration=>registration.update()).catch(()=>{});</script>
+  <script>if('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('./sw.js?v=38',{updateViaCache:'none'}).then(registration=>registration.update()).catch(()=>{});</script>
 </body>
 </html>
