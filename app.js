@@ -11,6 +11,8 @@
   const USER_TASK_CATEGORIES_KEY = 'naMinhaMao_task_categories';
   const TASK_AREA_STORAGE_KEY = 'naMinhaMao.taskArea.v1';
   const TASK_CATEGORY_STORAGE_KEY = 'naMinhaMao.taskCategory.v1';
+  const PLANNER_WEEK_STORAGE_KEY = 'naMinhaMao.plannerWeek.v1';
+  const PLAN_TRAY_STORAGE_KEY = 'naMinhaMao.planTrayOpen.v1';
   const TASK_AREA_CATEGORIES = { inbox:[], life:['finance','home','personal'], work:['released','quote','approval'] };
   const TASK_VIEW_ORDER_KEYS = ['inbox','life_finance','life_home','life_personal','life_done','work_released','work_quote','work_approval','work_done'];
   const ZOOM_KEY = 'naMinhaMao.zoom.v1';
@@ -45,10 +47,15 @@
   let categoryTaskId = null;
   let detailTaskId = null;
   let historyExpanded = false;
+  let plannerWeekStart = startOfWeekKey(localStorage.getItem(PLANNER_WEEK_STORAGE_KEY) || todayKey());
+  let plannerMonthCursor = `${addDaysKey(plannerWeekStart,3).slice(0,7)}-01`;
+  let planTrayOpen = localStorage.getItem(PLAN_TRAY_STORAGE_KEY) === 'true';
+  let plannerDraggedTaskId = null;
+  let plannerSwipeOrigin = null;
   localStorage.removeItem('naMinhaMao.view');
   const storedPage = localStorage.getItem('naMinhaMao.page');
   let currentPage = ['home','tasks','notes','settings'].includes(storedPage) ? storedPage : 'home';
-  let currentTaskArea = ['life','work','inbox'].includes(localStorage.getItem(TASK_AREA_STORAGE_KEY)) ? localStorage.getItem(TASK_AREA_STORAGE_KEY) : 'inbox';
+  let currentTaskArea = ['life','work'].includes(localStorage.getItem(TASK_AREA_STORAGE_KEY)) ? localStorage.getItem(TASK_AREA_STORAGE_KEY) : 'life';
   let currentTaskCategory = localStorage.getItem(TASK_CATEGORY_STORAGE_KEY) || (currentTaskArea === 'life' ? 'finance' : currentTaskArea === 'work' ? 'released' : '');
   if (currentTaskArea === 'inbox') currentTaskCategory = '';
   else if (currentTaskCategory !== 'done' && !TASK_AREA_CATEGORIES[currentTaskArea].includes(currentTaskCategory)) currentTaskCategory = TASK_AREA_CATEGORIES[currentTaskArea][0];
@@ -136,9 +143,10 @@
     return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
   }
   function dateAtNoon(key) {
-    if (!key) return null;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(key || ''))) return null;
     const [y,m,d] = key.split('-').map(Number);
-    return new Date(y, m-1, d, 12, 0, 0);
+    const date = new Date(y, m-1, d, 12, 0, 0);
+    return date.getFullYear() === y && date.getMonth() === m-1 && date.getDate() === d ? date : null;
   }
   function daysSince(key) {
     if (!key) return 0;
@@ -149,6 +157,63 @@
   function formatDate(key) {
     const d = dateAtNoon(key);
     return d ? d.toLocaleDateString('pt-BR', { weekday:'short', day:'2-digit', month:'2-digit', year:'numeric' }) : '';
+  }
+  function dateKeyFromDate(date) {
+    return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
+  }
+  function addDaysKey(key, amount) {
+    const date = dateAtNoon(key) || dateAtNoon(todayKey());
+    date.setDate(date.getDate() + Number(amount || 0));
+    return dateKeyFromDate(date);
+  }
+  function startOfWeekKey(key) {
+    const date = dateAtNoon(key) || dateAtNoon(todayKey());
+    date.setDate(date.getDate() - ((date.getDay() + 6) % 7));
+    return dateKeyFromDate(date);
+  }
+  function shiftMonthKey(key, amount) {
+    const date = dateAtNoon(key) || dateAtNoon(todayKey());
+    date.setDate(1);
+    date.setMonth(date.getMonth() + Number(amount || 0));
+    return dateKeyFromDate(date);
+  }
+  function formatPlannerDayName(key) {
+    return (dateAtNoon(key)?.toLocaleDateString('pt-BR', { weekday:'short' }) || '').replace(/\./g,'').toUpperCase();
+  }
+  function formatPlannerDayMonth(key) {
+    const date = dateAtNoon(key);
+    return date ? `${String(date.getDate()).padStart(2,'0')}/${String(date.getMonth()+1).padStart(2,'0')}` : '';
+  }
+  function plannerMonthWeeks(monthKey) {
+    const firstKey = `${String(monthKey || todayKey()).slice(0,7)}-01`;
+    const first = dateAtNoon(firstKey);
+    if (!first) return [];
+    const year = first.getFullYear(), month = first.getMonth();
+    const last = dateAtNoon(`${year}-${String(month+1).padStart(2,'0')}-${new Date(year,month+1,0).getDate()}`);
+    let cursor = dateAtNoon(startOfWeekKey(firstKey));
+    const weeks = [];
+    for (let index=0; index<6 && cursor <= last; index++) {
+      const startKey = dateKeyFromDate(cursor);
+      const endKey = addDaysKey(startKey,6);
+      if (dateAtNoon(endKey) >= first) weeks.push(startKey);
+      cursor = dateAtNoon(addDaysKey(startKey,7));
+    }
+    return weeks;
+  }
+  function plannerWeekLabel() {
+    const midweekKey = addDaysKey(plannerWeekStart,3);
+    const midweek = dateAtNoon(midweekKey);
+    const monthName = (midweek?.toLocaleDateString('pt-BR', { month:'short' }) || '').replace(/\./g,'').toUpperCase();
+    if (!midweek) return '';
+    const firstWeek = startOfWeekKey(`${midweek.getFullYear()}-${String(midweek.getMonth()+1).padStart(2,'0')}-01`);
+    const [year,month,day] = plannerWeekStart.split('-').map(Number);
+    const [firstYear,firstMonth,firstDay] = firstWeek.split('-').map(Number);
+    const weekNumber = Math.round((Date.UTC(year,month-1,day) - Date.UTC(firstYear,firstMonth-1,firstDay)) / 604800000) + 1;
+    return `${monthName} · Semana ${weekNumber}`;
+  }
+  function formatPlannerWeekRange(startKey) {
+    const endKey = addDaysKey(startKey,6);
+    return `${formatPlannerDayMonth(startKey)}–${formatPlannerDayMonth(endKey)}`;
   }
   function formatMinutes(minutes) {
     const n = Number(minutes) || 0;
@@ -300,7 +365,7 @@
   const TASK_STATUS_OPTIONS = [
     { id:'active', orderKey:'active', label:'Liberado' },
     { id:'client_review', orderKey:'review', label:'Aprovando' },
-    { id:'waiting', orderKey:'waiting', label:'Entrada' }
+    { id:'waiting', orderKey:'waiting', label:'Aguardando' }
   ];
   function orderKeyForStatus(status) {
     return TASK_STATUS_OPTIONS.find(option => option.id === status)?.orderKey || null;
@@ -389,17 +454,20 @@
     if (!task || task.completedAt || !targetOption || task.status === targetStatus) return;
     const oldCategoryKey = taskCategoryKey(task);
     const oldArea = task.area;
+    const removedExecutionDate = task.area === 'work' && targetStatus === 'waiting' && Boolean(task.executionDate);
+    if (removedExecutionDate && !window.confirm('Ao deixar a tarefa sem área, o Dia de execução será removido e ela voltará para Planejar. Continuar?')) return;
     task.status = targetStatus;
     if (task.area === 'work') {
-      if (targetStatus === 'waiting') { task.area = 'inbox'; task.category = null; }
+      if (targetStatus === 'waiting') { task.area = 'inbox'; task.category = null; task.executionDate = null; }
       else task.category = targetStatus === 'client_review' ? 'approval' : 'released';
       task.categoryUpdatedAt = new Date().toISOString();
     }
     if (targetStatus !== 'waiting' && !task.releaseDate) task.releaseDate = todayKey();
     moveTaskOrderEntry(task.id, oldCategoryKey, taskCategoryKey(task));
-    recordHistory(task, `Movida manualmente para ${targetOption.label}`);
+    recordHistory(task,removedExecutionDate ? `Movida manualmente para ${targetOption.label}; Dia de execução removido` : `Movida manualmente para ${targetOption.label}`);
     save(); render();
-    if (task.area !== oldArea || task.area === 'work') setTaskView(task.area,task.completedAt ? 'done' : task.category);
+    if (task.area === 'inbox') setPlanTrayOpen(true);
+    else if (task.area !== oldArea || task.area === 'work') setTaskView(task.area,task.completedAt ? 'done' : task.category);
     if ($('detailsDialog').open && String(detailTaskId) === String(taskId)) renderDetails();
     showToast(`Movida para ${targetOption.label}.`);
   }
@@ -469,25 +537,172 @@
     draggedTaskId = null; draggedOrderList = null; draggedDropPosition = null;
     render();
   }
-  function renderTask(task, completed = false, listKey = 'active', position = 0, itemCount = 1) {
+  function renderTask(task, completed = false, listKey = 'active', position = 0, itemCount = 1, options = {}) {
     const age = daysSince(task.releaseDate);
+    const isPlanner = Boolean(options.planner);
+    const inTray = Boolean(options.tray);
+    const unassigned = task.area === 'inbox';
     const releaseLabel = task.status === 'waiting'
-      ? 'Ainda não liberada'
+      ? 'Aguardando liberação'
       : (task.releaseDate ? (age === 0 ? 'Liberada hoje' : `Liberada há ${age} ${age === 1 ? 'dia' : 'dias'}`) : 'Data de liberação não registrada');
     const displayReleaseLabel = !completed && task.area === 'work' && task.category === 'quote' ? 'Enviar orçamento' : !completed && task.area === 'work' && task.category === 'approval' ? 'Aprovação' : releaseLabel;
     const releaseDate = task.status !== 'waiting' && task.releaseDate ? `<span class="task-release-date">· ${escapeHTML(formatDate(task.releaseDate))}</span>` : '';
     const taskId = escapeHTML(task.id);
     const completeButton = completed ? '' : `<button class="btn small good" data-action="complete" data-id="${taskId}" type="button" aria-label="Concluir tarefa" title="Concluir tarefa">CONCLUIR</button>`;
-    const moveUp = `<button type="button" data-action="move-up" data-id="${taskId}" data-order-list="${listKey}"${position === 0 ? ' disabled' : ''}>↑ Mover para cima</button>`;
-    const moveDown = `<button type="button" data-action="move-down" data-id="${taskId}" data-order-list="${listKey}"${position >= itemCount - 1 ? ' disabled' : ''}>↓ Mover para baixo</button>`;
+    const moveUp = inTray ? '' : `<button type="button" data-action="move-up" data-id="${taskId}" data-order-list="${listKey}"${position === 0 ? ' disabled' : ''}>↑ Mover para cima</button>`;
+    const moveDown = inTray ? '' : `<button type="button" data-action="move-down" data-id="${taskId}" data-order-list="${listKey}"${position >= itemCount - 1 ? ' disabled' : ''}>↓ Mover para baixo</button>`;
     const moveStatus = completed ? '' : TASK_STATUS_OPTIONS.filter(option => option.id !== task.status).map(option => `<button type="button" data-action="move-status" data-id="${taskId}" data-status="${option.id}">Mover para: ${escapeHTML(option.label)}</button>`).join('');
     const menu = `<details class="task-menu"><summary aria-label="Mais opções" title="Mais opções">⋮</summary><div class="task-menu-popover">${moveUp}${moveDown}${moveStatus ? '<div class="task-menu-divider"></div>' + moveStatus : ''}<div class="task-menu-divider"></div><button type="button" data-action="organize" data-id="${taskId}">Organizar em…</button><button type="button" data-action="move-to-note" data-id="${taskId}">Mover para nota…</button><div class="task-menu-divider"></div><button type="button" data-action="delete" data-id="${taskId}">EXCLUIR</button></div></details>`;
-    const dragHandle = `<button class="task-drag-handle" type="button" draggable="true" data-drag-handle aria-label="Arrastar para reordenar" title="Arraste para reordenar">⠿</button>`;
+    const canDragToPlan = isPlanner && !completed && !unassigned;
+    const dragLabel = isPlanner ? (canDragToPlan ? 'Arrastar para outro dia' : 'Classifique em VIDA ou TRABALHO antes de agendar') : 'Arrastar para reordenar';
+    const dragHandle = `<button class="task-drag-handle" type="button" draggable="${isPlanner ? canDragToPlan : true}" data-drag-handle${isPlanner ? ' data-planner-drag' : ''}${isPlanner && !canDragToPlan ? ' disabled' : ''} aria-label="${escapeHTML(dragLabel)}" title="${escapeHTML(dragLabel)}">⠿</button>`;
     const actions = completeButton ? `<div class="task-actions">${completeButton}</div>` : '';
-    return `<article class="task task-clickable" data-task="${taskId}" data-open-task="${taskId}" tabindex="0" aria-label="Abrir tarefa: ${escapeHTML(task.title)}" aria-keyshortcuts="Enter Space">
-      <div class="task-top">${dragHandle}<div class="task-main"><div class="task-title">${escapeHTML(task.title)}</div><div class="task-summary"><span class="task-release"><strong class="task-release-label${task.status !== 'waiting' && task.releaseDate ? '' : ' is-pending'}">${escapeHTML(displayReleaseLabel)}</strong>${releaseDate}</span></div></div>${menu}</div>
-      ${actions}
+    const plannerArea = isPlanner ? `<span class="planner-task-area">${escapeHTML(unassigned ? 'Sem área · classifique para agendar' : taskCategoryLabel(task.area,completed ? 'done' : task.category))}</span>` : '';
+    const trayControl = !inTray ? '' : completed
+      ? '<p class="plan-unassigned-note">Concluída · sem Dia de execução.</p>'
+      : unassigned
+        ? '<p class="plan-unassigned-note">Escolha VIDA ou TRABALHO em “Organizar em…” antes de agendar.</p>'
+        : `<label class="plan-date-control"><span>Dia de execução</span><input type="date" data-plan-date data-id="${taskId}" aria-label="Escolher Dia de execução para ${escapeHTML(task.title)}"></label>`;
+    return `<article class="task task-clickable${isPlanner ? ' planner-task' : ''}" data-task="${taskId}" data-open-task="${taskId}"${isPlanner ? ' data-planner-task' : ''} tabindex="0" aria-label="Abrir tarefa: ${escapeHTML(task.title)}" aria-keyshortcuts="Enter Space">
+      <div class="task-top">${dragHandle}<div class="task-main"><div class="task-title">${escapeHTML(task.title)}</div><div class="task-summary"><span class="task-release"><strong class="task-release-label${task.status !== 'waiting' && task.releaseDate ? '' : ' is-pending'}">${escapeHTML(displayReleaseLabel)}</strong>${releaseDate}</span>${plannerArea}</div></div>${menu}</div>
+      ${trayControl}${actions}
     </article>`;
+  }
+  function renderPlannerWeekOptions() {
+    const monthDate = dateAtNoon(`${plannerMonthCursor.slice(0,7)}-01`);
+    if (!monthDate) return;
+    $('plannerMonthLabel').textContent = monthDate.toLocaleDateString('pt-BR', { month:'long', year:'numeric' });
+    const weeks = plannerMonthWeeks(plannerMonthCursor);
+    $('plannerWeekOptions').innerHTML = weeks.map((startKey,index) => `<button class="planner-week-option" type="button" data-week-start="${startKey}" aria-pressed="${String(startKey === plannerWeekStart)}"><strong>Semana ${index+1}</strong><span>${formatPlannerWeekRange(startKey)}</span></button>`).join('');
+  }
+  function plannerTasksForCurrentView() {
+    return tasks.filter(task => task.area === currentTaskArea && (currentTaskCategory === 'done' ? Boolean(task.completedAt) : !task.completedAt && task.category === currentTaskCategory));
+  }
+  function plannerTrayTasks() {
+    return tasks.filter(task => !task.executionDate).sort((a,b) => {
+      if (Boolean(a.completedAt) !== Boolean(b.completedAt)) return a.completedAt ? 1 : -1;
+      if ((a.area === 'inbox') !== (b.area === 'inbox')) return a.area === 'inbox' ? -1 : 1;
+      if (a.dueDate && b.dueDate) return String(a.dueDate).localeCompare(String(b.dueDate));
+      if (a.dueDate) return -1;
+      if (b.dueDate) return 1;
+      return String(a.createdAt || '').localeCompare(String(b.createdAt || ''));
+    });
+  }
+  function renderPlanner() {
+    const grid = $('plannerWeekGrid');
+    if (!grid) return;
+    $('plannerWeekPickerBtn').textContent = plannerWeekLabel();
+    const viewKey = currentTaskViewKey();
+    const orderedTasks = applyManualOrder(plannerTasksForCurrentView().sort((a,b) => {
+      if (a.dueDate && b.dueDate) return String(a.dueDate).localeCompare(String(b.dueDate));
+      if (a.dueDate) return -1;
+      if (b.dueDate) return 1;
+      return String(a.createdAt || '').localeCompare(String(b.createdAt || ''));
+    }), viewKey);
+    const today = todayKey();
+    grid.innerHTML = Array.from({ length:7 }, (_,index) => {
+      const dayKey = addDaysKey(plannerWeekStart,index);
+      const dayTasks = orderedTasks.filter(task => task.executionDate === dayKey);
+      const cards = dayTasks.length
+        ? dayTasks.map(task => renderTask(task,Boolean(task.completedAt),viewKey,orderedTasks.indexOf(task),orderedTasks.length,{ planner:true })).join('')
+        : '<div class="planner-day-empty">Arraste uma tarefa para este dia</div>';
+      return `<section class="planner-day${dayKey === today ? ' is-today' : ''}" data-week-day="${dayKey}" aria-label="${escapeHTML(formatDate(dayKey))}"><div class="planner-day-header"><span class="planner-day-name">${escapeHTML(formatPlannerDayName(dayKey))}</span><strong class="planner-day-date">${escapeHTML(formatPlannerDayMonth(dayKey))}</strong></div><div class="planner-day-tasks">${cards}</div></section>`;
+    }).join('');
+    const trayTasks = plannerTrayTasks();
+    const openTrayTasks = trayTasks.filter(task => !task.completedAt);
+    const completedTrayTasks = trayTasks.filter(task => Boolean(task.completedAt));
+    $('planTrayCount').textContent = String(openTrayTasks.length);
+    const openTrayCards = openTrayTasks.map((task,index) => renderTask(task,false,'tray',index,openTrayTasks.length,{ planner:true, tray:true })).join('');
+    const completedTrayCards = completedTrayTasks.map((task,index) => renderTask(task,true,'tray-done',index,completedTrayTasks.length,{ planner:true, tray:true })).join('');
+    const completedTraySection = completedTrayTasks.length
+      ? `<details class="planner-completed-tray"><summary>Concluídas sem Dia de execução (${completedTrayTasks.length})</summary><div class="planner-completed-list">${completedTrayCards}</div></details>`
+      : '';
+    $('planTrayList').innerHTML = `${openTrayCards || '<div class="empty">Não há tarefas em aberto para planejar.</div>'}${completedTraySection}`;
+    $('planTray').classList.toggle('hidden',!planTrayOpen);
+    $('planTray').setAttribute('aria-hidden',String(!planTrayOpen));
+    $('planTrayToggle').setAttribute('aria-expanded',String(planTrayOpen));
+    document.body.classList.toggle('planner-tray-open',planTrayOpen);
+    renderPlannerWeekOptions();
+  }
+  function setPlannerWeek(startKey) {
+    plannerWeekStart = startOfWeekKey(startKey);
+    plannerMonthCursor = `${addDaysKey(plannerWeekStart,3).slice(0,7)}-01`;
+    localStorage.setItem(PLANNER_WEEK_STORAGE_KEY,plannerWeekStart);
+    renderPlanner();
+  }
+  function shiftPlannerWeek(amount) { setPlannerWeek(addDaysKey(plannerWeekStart,Number(amount || 0) * 7)); }
+  function shiftPlannerMonth(amount) {
+    plannerMonthCursor = shiftMonthKey(plannerMonthCursor,amount);
+    renderPlannerWeekOptions();
+  }
+  function setPlanTrayOpen(open) {
+    planTrayOpen = Boolean(open);
+    localStorage.setItem(PLAN_TRAY_STORAGE_KEY,String(planTrayOpen));
+    renderPlanner();
+  }
+  function setTaskExecutionDate(taskId,dateKey) {
+    const task = tasks.find(item => String(item.id) === String(taskId));
+    if (!task || task.completedAt) return false;
+    if (!['life','work'].includes(task.area)) {
+      showToast('Escolha VIDA ou TRABALHO em “Organizar em…” antes de agendar.');
+      return false;
+    }
+    const nextDate = String(dateKey || '').trim();
+    if (nextDate && !dateAtNoon(nextDate)) return false;
+    if ((task.executionDate || '') === nextDate) return false;
+    task.executionDate = nextDate || null;
+    recordHistory(task,nextDate ? `Dia de execução definido para ${formatDate(nextDate)}` : 'Dia de execução removido; tarefa voltou para Planejar');
+    if (nextDate) {
+      currentTaskArea = task.area; currentTaskCategory = task.category;
+      localStorage.setItem(TASK_AREA_STORAGE_KEY,currentTaskArea);
+      localStorage.setItem(TASK_CATEGORY_STORAGE_KEY,currentTaskCategory);
+      setPlannerWeek(nextDate);
+    }
+    save();
+    render();
+    if ($('detailsDialog').open && String(detailTaskId) === String(taskId)) renderDetails();
+    showToast(nextDate ? 'Dia de execução definido.' : 'Tarefa voltou para Planejar.');
+    return true;
+  }
+  function handlePlanDateChange(event) {
+    const input = event.target.closest('input[data-plan-date]');
+    if (input && input.value) setTaskExecutionDate(input.dataset.id,input.value);
+  }
+  function handlePlannerDragStart(event) {
+    const handle = event.target.closest('[data-planner-drag]');
+    if (!handle) { event.preventDefault(); return; }
+    const card = handle.closest('.planner-task[data-task]');
+    const task = card && tasks.find(item => String(item.id) === String(card.dataset.task));
+    if (!task || task.completedAt || !['life','work'].includes(task.area)) { event.preventDefault(); return; }
+    plannerDraggedTaskId = String(task.id);
+    if (event.dataTransfer) { event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain',plannerDraggedTaskId); }
+    card.classList.add('is-dragging');
+  }
+  function handlePlannerDragOver(event) {
+    if (!plannerDraggedTaskId) return;
+    const day = event.target.closest('.planner-day[data-week-day]');
+    const tray = event.target.closest('#planTrayList');
+    if (!day && !tray) return;
+    event.preventDefault();
+    if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+    day?.classList.add('is-drop-target');
+    tray?.classList.add('is-drop-target');
+  }
+  function handlePlannerDrop(event) {
+    if (!plannerDraggedTaskId) return;
+    const day = event.target.closest('.planner-day[data-week-day]');
+    const tray = event.target.closest('#planTrayList');
+    if (!day && !tray) return;
+    event.preventDefault();
+    const taskId = plannerDraggedTaskId;
+    plannerDraggedTaskId = null;
+    document.querySelectorAll('.planner-day.is-drop-target,#planTrayList.is-drop-target').forEach(node => node.classList.remove('is-drop-target'));
+    if (day) setTaskExecutionDate(taskId,day.dataset.weekDay);
+    else setTaskExecutionDate(taskId,'');
+  }
+  function handlePlannerDragEnd() {
+    plannerDraggedTaskId = null;
+    document.querySelectorAll('.planner-task.is-dragging,.planner-day.is-drop-target,#planTrayList.is-drop-target').forEach(node => node.classList.remove('is-dragging','is-drop-target'));
   }
   function render() {
     const active = applyManualOrder(tasks.filter(t => t.status === 'active' && !t.completedAt).sort((a,b) => {
@@ -522,7 +737,6 @@
     $('waitingCount').textContent = waiting.length;
     $('lifeAreaCount').textContent = countTaskCategory('life');
     $('workAreaCount').textContent = countTaskCategory('work');
-    $('inboxAreaCount').textContent = countTaskCategory('inbox');
     $('lifeFinanceCount').textContent = countTaskCategory('life','finance');
     $('lifeHomeCount').textContent = countTaskCategory('life','home');
     $('lifePersonalCount').textContent = countTaskCategory('life','personal');
@@ -559,7 +773,7 @@
     }), viewKey);
     $('taskList').dataset.orderKey = viewKey;
     const emptyMessage = currentTaskArea === 'inbox'
-      ? 'Entrada vazia por enquanto.'
+      ? 'Sem área por enquanto.'
       : currentTaskCategory === 'done'
         ? 'As tarefas concluídas desta área aparecem aqui.'
         : `Nenhuma tarefa em ${escapeHTML(taskCategoryLabel(currentTaskArea,currentTaskCategory))} por enquanto.`;
@@ -568,6 +782,7 @@
       : `<div class="empty">${emptyMessage}</div>`;
     renderHistory();
     applyPageMode();
+    renderPlanner();
     updateTimerDisplays();
   }
   function renderHistory() {
@@ -763,6 +978,7 @@
     const metadata = [`Status: ${status}`, `Organização: ${taskCategoryLabel(task.area,task.completedAt ? 'done' : task.category)}`];
     if (task.createdAt) metadata.push(`Criada: ${formatTimestamp(task.createdAt)}`);
     if (task.releaseDate) metadata.push(`Liberada: ${formatDate(task.releaseDate)}`);
+    if (task.executionDate) metadata.push(`Dia de execução: ${formatDate(task.executionDate)}`);
     if (task.dueDate) metadata.push(`Prazo: ${formatDate(task.dueDate)}`);
     metadata.push(`Estimativa: ${formatMinutes(task.estimateMinutes)}`);
     const spent = elapsedSeconds(task);
@@ -804,7 +1020,7 @@
     note.updatedAt = note.deletedAt;
     tasks.push(task);
     save(false); saveNotes(false); scheduleCloudSync(); render(); renderNotes();
-    setPage('tasks'); setTaskView('inbox','');
+    setPage('tasks'); setPlanTrayOpen(true);
     showToast('Nota movida para tarefa e liberada hoje.');
   }
   function moveTaskToNote(taskId) {
@@ -829,8 +1045,8 @@
     return `${area}_${category || (area === 'life' ? 'finance' : 'released')}`;
   }
   function taskCategoryLabel(area, category) {
-    const labels = { inbox:'Entrada', finance:'Finanças', home:'Casa', personal:'Pessoal', released:'Liberado', quote:'Enviar orçamento', approval:'Aprovação', done:'Concluído' };
-    return area === 'inbox' ? 'Entrada' : `${area === 'life' ? 'Vida' : 'Trabalho'} · ${labels[category] || category}`;
+    const labels = { inbox:'Sem área · Planejar', finance:'Finanças', home:'Casa', personal:'Pessoal', released:'Liberado', quote:'Enviar orçamento', approval:'Aprovação', done:'Concluído' };
+    return area === 'inbox' ? 'Sem área · Planejar' : `${area === 'life' ? 'Vida' : 'Trabalho'} · ${labels[category] || category}`;
   }
   function tasksForCurrentView() {
     if (currentTaskArea === 'inbox') return tasks.filter(task => task.area === 'inbox');
@@ -862,7 +1078,7 @@
     $('clearCompletedBtn')?.setAttribute('aria-label', `Limpar todas as tarefas concluídas de ${currentTaskArea === 'life' ? 'VIDA' : 'TRABALHO'}`);
   }
   function setTaskView(area, category, resetScroll = true) {
-    if (!['life','work','inbox'].includes(area)) return;
+    if (!['life','work'].includes(area)) return;
     const categories = TASK_AREA_CATEGORIES[area] || [];
     const nextCategory = area === 'inbox' ? '' : (category === 'done' || categories.includes(category) ? category : categories[0]);
     currentTaskArea = area; currentTaskCategory = nextCategory;
@@ -875,7 +1091,8 @@
   function setTaskArea(area) { setTaskView(area, area === 'life' ? 'finance' : area === 'work' ? 'released' : '', true); }
   function setTaskCategory(category) { setTaskView(currentTaskArea, category, true); }
   function setTaskTab(tab, resetScroll = true) {
-    const aliases = { active:['work','released'], review:['work','approval'], waiting:['inbox',''], done:[currentTaskArea === 'inbox' ? 'inbox' : currentTaskArea,'done'] };
+    if (tab === 'waiting') { setPage('tasks'); setPlanTrayOpen(true); return; }
+    const aliases = { active:['work','released'], review:['work','approval'], done:[currentTaskArea,'done'] };
     if (aliases[tab]) { setTaskView(...aliases[tab], resetScroll); return; }
     if (TASK_VIEW_ORDER_KEYS.includes(tab)) {
       const [area,category] = tab.split('_',2);
@@ -909,18 +1126,38 @@
     if (!Object.hasOwn(ORDER_LIST_IDS, status)) return;
     const matches = task => status === 'done' ? Boolean(task.completedAt) : !task.completedAt && task.status === ({ active:'active', review:'client_review', waiting:'waiting' }[status]);
     const matchingTask = tasks.find(matches);
-    const fallback = { active:['work','released'], review:['work','approval'], waiting:['inbox',''], done:[currentTaskArea === 'inbox' ? 'inbox' : currentTaskArea,'done'] }[status];
-    const destination = matchingTask ? [matchingTask.area,matchingTask.area === 'inbox' ? '' : matchingTask.completedAt ? 'done' : matchingTask.category] : fallback;
     setPage('tasks');
-    setTaskView(destination[0], destination[1]);
+    if (status === 'waiting' || status === 'done' || matchingTask?.area === 'inbox') {
+      if (status === 'done') setTaskView(['life','work'].includes(matchingTask?.area) ? matchingTask.area : currentTaskArea,'done');
+      setPlanTrayOpen(true);
+      requestAnimationFrame(() => {
+        const target = matchingTask && Array.from(document.querySelectorAll('#planTrayList .task[data-task]')).find(node => node.dataset.task === String(matchingTask.id));
+        target?.scrollIntoView({ behavior:'smooth', block:'center' });
+      });
+      return;
+    }
+    const fallback = { active:['work','released'], review:['work','approval'], done:[currentTaskArea,'done'] }[status];
+    const destination = matchingTask ? [matchingTask.area,matchingTask.completedAt ? 'done' : matchingTask.category] : fallback;
+    setTaskView(destination[0],destination[1]);
   }
   function openTaskInList(taskId) {
     const task = tasks.find(item => String(item.id) === String(taskId) && !item.completedAt);
     if (!task) { showToast('Essa tarefa não está mais disponível para abrir.'); return; }
     setPage('tasks');
-    setTaskView(task.area, task.category);
+    if (!['life','work'].includes(task.area)) {
+      setPlanTrayOpen(true);
+      requestAnimationFrame(() => {
+        const target = Array.from(document.querySelectorAll('#planTrayList .task[data-task]')).find(node => node.dataset.task === String(taskId));
+        target?.scrollIntoView({ behavior:'smooth', block:'center' });
+      });
+      return;
+    }
+    setTaskView(task.area,task.category);
+    if (task.executionDate) setPlannerWeek(task.executionDate);
+    if (!task.executionDate) setPlanTrayOpen(true);
     requestAnimationFrame(() => {
-      const target = Array.from(document.querySelectorAll('#listView .task[data-task]')).find(node => node.dataset.task === String(taskId));
+      const selector = task.executionDate ? '#plannerWeekGrid .task[data-task]' : '#planTrayList .task[data-task]';
+      const target = Array.from(document.querySelectorAll(selector)).find(node => node.dataset.task === String(taskId));
       if (!target) return;
       target.focus({ preventScroll:true });
       target.scrollIntoView({ behavior:'smooth', block:'center' });
@@ -977,7 +1214,7 @@
     $('detailDescription').textContent = task.details || 'Nenhum detalhe adicional cadastrado.';
     renderSubtasks(task);
     const age = daysSince(task.releaseDate);
-    const statusLabel = task.completedAt ? 'Concluído' : ({ active:'Liberado', client_review:'Aprovando', waiting:'Entrada' }[task.status] || 'Status não informado');
+    const statusLabel = task.completedAt ? 'Concluído' : ({ active:'Liberado', client_review:'Aprovando', waiting:'Aguardando' }[task.status] || 'Status não informado');
     const releaseLabel = task.status === 'waiting'
       ? 'Ainda não liberada'
       : (task.releaseDate ? `${age === 0 ? 'Liberada hoje' : `Liberada há ${age} ${age === 1 ? 'dia' : 'dias'}`} · ${formatDate(task.releaseDate)}` : 'Data de liberação não registrada');
@@ -985,6 +1222,7 @@
       { label:'Organização', value:taskCategoryLabel(task.area,task.completedAt ? 'done' : task.category) },
       { label:'Status', value:statusLabel },
       { label:'Liberação', value:releaseLabel },
+      { label:'Dia de execução', value:task.executionDate ? formatDate(task.executionDate) : 'Ainda não planejado' },
       { label:'Entrega', value:task.dueDate ? formatDate(task.dueDate) : 'Sem data de entrega', className:task.dueDate ? 'due' : '' },
       { label:'Estimativa', value:formatMinutes(task.estimateMinutes) },
       { label:'Tempo registrado', value:formatMinutes(Math.floor(elapsedSeconds(task)/60)) },
@@ -1140,7 +1378,7 @@
     categoryTaskId = String(task.id);
     $('categoryTaskName').textContent = task.title;
     $('categoryDestination').value = task.area === 'inbox' ? 'inbox' : `${task.area}:${task.category}`;
-    $('taskList').querySelectorAll('.task-menu[open]').forEach(menu => menu.removeAttribute('open'));
+    document.querySelectorAll('.task-menu[open]').forEach(menu => menu.removeAttribute('open'));
     $('categoryDialog').showModal();
   }
   function onTaskCategorySubmit(event) {
@@ -1150,10 +1388,13 @@
     const destination = String($('categoryDestination').value || 'inbox');
     const [area,category] = destination === 'inbox' ? ['inbox',null] : destination.split(':');
     if (!Object.hasOwn(TASK_AREA_CATEGORIES,area) || (area !== 'inbox' && !TASK_AREA_CATEGORIES[area].includes(category))) return;
+    const removedExecutionDate = area === 'inbox' && Boolean(task.executionDate);
+    if (removedExecutionDate && !window.confirm('A tarefa ficará sem área e voltará para Planejar; o Dia de execução será removido. Continuar?')) return;
     const oldKey = taskCategoryKey(task);
     task.area = area; task.category = category; task.categoryUpdatedAt = new Date().toISOString();
+    if (area === 'inbox') task.executionDate = null;
     moveTaskOrderEntry(task.id,oldKey,taskCategoryKey(task));
-    recordHistory(task,`Organizada em ${taskCategoryLabel(area,category)}`);
+    recordHistory(task,removedExecutionDate ? `Organizada em ${taskCategoryLabel(area,category)}; Dia de execução removido` : `Organizada em ${taskCategoryLabel(area,category)}`);
     save(); render(); $('categoryDialog').close(); categoryTaskId = null;
     if ($('detailsDialog').open && String(detailTaskId) === String(task.id)) renderDetails();
     showToast(`Tarefa organizada em ${taskCategoryLabel(area,category)}.`);
@@ -1296,8 +1537,8 @@
       blocker: ready ? '' : String(data.get('blocker')||'').trim(), timeSpentSeconds: 0,
       createdAt: new Date().toISOString(), completedAt: null, subtasks: []
     };
-    tasks.push(task); save(); render(); form.reset(); $('taskId').value = ''; $('estimate').value = 60; closeForm(); setTaskView('inbox','');
-    showToast(ready ? 'Tarefa liberada e registrada a partir de hoje.' : 'Tarefa adicionada à Entrada.');
+    tasks.push(task); save(); render(); form.reset(); $('taskId').value = ''; $('estimate').value = 60; closeForm(); setPlanTrayOpen(true);
+    showToast(ready ? 'Tarefa liberada e registrada a partir de hoje.' : 'Tarefa adicionada a Planejar.');
   }
   function onReleaseSubmit(event) {
     event.preventDefault();
@@ -1814,6 +2055,36 @@
     const button = event.target.closest('button[data-task-category]');
     if (button && button.dataset.taskArea === currentTaskArea) setTaskCategory(button.dataset.taskCategory);
   });
+  $('plannerPrevWeek').addEventListener('click', () => shiftPlannerWeek(-1));
+  $('plannerNextWeek').addEventListener('click', () => shiftPlannerWeek(1));
+  $('plannerTodayBtn').addEventListener('click', () => setPlannerWeek(todayKey()));
+  $('plannerWeekPickerBtn').addEventListener('click', () => {
+    plannerMonthCursor = `${addDaysKey(plannerWeekStart,3).slice(0,7)}-01`;
+    renderPlannerWeekOptions();
+    $('plannerWeekDialog').showModal();
+  });
+  $('plannerMonthPrev').addEventListener('click', () => shiftPlannerMonth(-1));
+  $('plannerMonthNext').addEventListener('click', () => shiftPlannerMonth(1));
+  $('closePlannerWeekDialog').addEventListener('click', () => $('plannerWeekDialog').close());
+  $('plannerWeekDialog').addEventListener('click', event => {
+    const button = event.target.closest('button[data-week-start]');
+    if (!button) return;
+    setPlannerWeek(button.dataset.weekStart);
+    $('plannerWeekDialog').close();
+  });
+  $('planTrayToggle').addEventListener('click', () => setPlanTrayOpen(!planTrayOpen));
+  $('closePlanTray').addEventListener('click', () => setPlanTrayOpen(false));
+  $('plannerWeekViewport').addEventListener('touchstart', event => {
+    if (event.touches.length !== 1 || event.target.closest('button,input,select,textarea,.task-menu,.task-drag-handle')) { plannerSwipeOrigin = null; return; }
+    plannerSwipeOrigin = { x:event.touches[0].clientX, y:event.touches[0].clientY };
+  }, { passive:true });
+  $('plannerWeekViewport').addEventListener('touchend', event => {
+    if (!plannerSwipeOrigin || !event.changedTouches.length) return;
+    const deltaX = event.changedTouches[0].clientX - plannerSwipeOrigin.x;
+    const deltaY = event.changedTouches[0].clientY - plannerSwipeOrigin.y;
+    plannerSwipeOrigin = null;
+    if (Math.abs(deltaX) >= 72 && Math.abs(deltaY) < 58) shiftPlannerWeek(deltaX < 0 ? 1 : -1);
+  }, { passive:true });
   $('nextTaskContent').addEventListener('click', event => {
     const button = event.target.closest('button[data-open-task]');
     if (button) openTaskInList(button.dataset.openTask);
@@ -1862,7 +2133,19 @@
   });
   $('listView').addEventListener('dragover', handleTaskDragOver);
   $('listView').addEventListener('drop', handleTaskDrop);
+  ['plannerWeekGrid','planTrayList'].forEach(id => {
+    $(id).addEventListener('click', handleTaskCardClick);
+    $(id).addEventListener('keydown', handleTaskCardKeydown);
+    $(id).addEventListener('click', handleListAction);
+    $(id).addEventListener('dragstart', handlePlannerDragStart);
+  });
+  $('plannerWeekGrid').addEventListener('dragover', handlePlannerDragOver);
+  $('plannerWeekGrid').addEventListener('drop', handlePlannerDrop);
+  $('planTrayList').addEventListener('dragover', handlePlannerDragOver);
+  $('planTrayList').addEventListener('drop', handlePlannerDrop);
+  $('planTrayList').addEventListener('change', handlePlanDateChange);
   document.addEventListener('dragend', handleTaskDragEnd);
+  document.addEventListener('dragend', handlePlannerDragEnd);
   $('detailsDialog').addEventListener('click', handleListAction);
   $('detailsDialog').addEventListener('click', event => {
     const dialog = event.currentTarget;

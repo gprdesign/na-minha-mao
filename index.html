@@ -391,6 +391,81 @@
       #notesPage .note-content { font-size:.8rem; }
     }
     @media(prefers-reduced-motion:reduce) { .next-task-card,.task-target-highlight,.history-target-highlight { animation:none; } }
+    /* Weekly task planner */
+    #tasksPage .planner-shell { display:flex; flex:1; flex-direction:column; min-height:0; gap:7px; }
+    #tasksPage .planner-toolbar { display:flex; flex:none; align-items:center; justify-content:center; gap:7px; margin:0 2px; }
+    .planner-week-nav { display:grid; place-items:center; width:34px; min-width:34px; height:34px; min-height:34px; padding:0; border-radius:50%; }
+    #plannerWeekPickerBtn { min-height:36px; padding:6px 14px; border-radius:999px; font-size:.82rem; font-weight:800; letter-spacing:.02em; box-shadow:0 5px 16px #0004; }
+    #plannerTodayBtn { min-height:34px; padding:5px 10px; font-size:.76rem; }
+    #plannerWeekViewport { flex:1; min-height:0; overflow:auto; overscroll-behavior:contain; touch-action:pan-y; padding:1px 2px 12px; }
+    #plannerWeekGrid { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); align-items:stretch; gap:7px; min-height:100%; }
+    .planner-day { display:flex; flex-direction:column; min-width:0; min-height:160px; padding:7px; border:1px solid var(--line); border-radius:12px; background:var(--panel); transition:border-color .15s,background .15s; }
+    .planner-day.is-today { border-color:#8bafff88; background:#151f32; }
+    .planner-day.is-drop-target,.plan-tray-list.is-drop-target { border-color:var(--accent); background:#243452; box-shadow:inset 0 0 0 2px #8bafff55; }
+    .planner-day-header { display:flex; align-items:baseline; justify-content:space-between; gap:4px; margin:0 1px 7px; padding-bottom:5px; border-bottom:1px solid #39466380; }
+    .planner-day-name { color:var(--muted); font-size:.7rem; font-weight:800; text-transform:uppercase; }
+    .planner-day-date { font-size:.82rem; font-weight:800; font-variant-numeric:tabular-nums; }
+    .planner-day.is-today .planner-day-date { color:var(--accent); }
+    .planner-day-tasks { display:grid; align-content:start; gap:6px; min-height:54px; }
+    .planner-day-empty { display:grid; flex:1; min-height:48px; place-items:center; color:#8792a8; font-size:.7rem; text-align:center; border:1px dashed #39466370; border-radius:8px; }
+    .planner-task { width:100% !important; height:auto !important; min-height:0 !important; padding:7px !important; border-radius:9px !important; gap:5px !important; }
+    .planner-task .task-top { align-items:flex-start; gap:4px; }
+    .planner-task .task-drag-handle { width:20px; min-width:20px; height:24px; padding:0; font-size:.95rem; }
+    .planner-task .task-main { min-width:0; }
+    .planner-task .task-title { min-height:0 !important; font-size:.78rem !important; line-height:1.18; -webkit-line-clamp:3; }
+    .planner-task .task-summary { display:grid; gap:2px; margin-top:4px; font-size:.64rem; }
+    .planner-task .task-release { display:block; font-size:.65rem; }
+    .planner-task .task-release-date { font-size:.62rem; }
+    .planner-task .planner-task-area { color:var(--muted); font-size:.62rem; line-height:1.2; overflow-wrap:anywhere; }
+    .planner-task .task-menu > summary { width:25px; height:25px; }
+    .planner-task .task-actions { margin-top:3px; }
+    .planner-task .task-actions .btn { min-height:28px; padding:4px 5px; font-size:.65rem; }
+    .planner-task .task-drag-handle:disabled { opacity:.35; cursor:not-allowed; }
+    .plan-tray-toggle { position:fixed; z-index:24; left:50%; bottom:calc(182px + env(safe-area-inset-bottom,0px)); transform:translateX(-50%); min-height:38px; padding:7px 16px; border:1px solid #52678f; border-radius:999px; background:#263653f5; color:var(--text); box-shadow:0 8px 22px #0007; font:inherit; font-size:.8rem; font-weight:800; white-space:nowrap; }
+    .plan-tray-toggle:hover { background:#324466; }
+    .plan-tray-toggle[aria-expanded="true"] { opacity:0; pointer-events:none; }
+    .plan-tray { position:fixed; z-index:25; left:50%; bottom:calc(176px + env(safe-area-inset-bottom,0px)); transform:translateX(-50%); display:flex; flex-direction:column; width:min(760px,calc(100% - 28px)); max-height:min(52vh,520px); padding:12px; border:1px solid #52678f; border-radius:16px; background:#111827f7; box-shadow:0 16px 48px #000b; backdrop-filter:blur(16px); }
+    .plan-tray-head { display:flex; flex:none; align-items:flex-start; justify-content:space-between; gap:10px; padding:0 0 9px; }
+    .plan-tray-head h3 { margin:0 0 3px; font-size:.95rem; }
+    .plan-tray-head p { margin:0; color:var(--muted); font-size:.72rem; line-height:1.35; }
+    .plan-tray-list { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); align-content:start; gap:7px; min-height:70px; overflow:auto; overscroll-behavior:contain; padding:2px; border:1px dashed transparent; border-radius:10px; }
+    .plan-tray-list > .empty { grid-column:1/-1; padding:14px 8px; }
+    .planner-completed-tray { grid-column:1/-1; border-top:1px solid var(--line); padding-top:7px; }
+    .planner-completed-tray > summary { color:var(--muted); cursor:pointer; font-size:.74rem; font-weight:750; }
+    .planner-completed-list { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:7px; padding-top:7px; }
+    .plan-tray-list .planner-task { min-height:94px !important; }
+    .plan-date-control { display:flex; align-items:center; justify-content:space-between; gap:6px; margin:3px 0 0 24px; color:var(--muted); font-size:.67rem; }
+    .plan-date-control input { width:auto; min-width:0; min-height:30px; margin:0; padding:3px 5px; font-size:.72rem; }
+    .plan-unassigned-note { margin:3px 0 0 24px; color:#f3cb83; font-size:.66rem; line-height:1.25; }
+    #listView.hidden { display:none !important; }
+    #plannerWeekDialog { width:min(460px,calc(100% - 24px)); }
+    .planner-month-controls { display:flex; align-items:center; justify-content:space-between; gap:10px; margin:4px 0 12px; }
+    .planner-month-controls strong { text-align:center; }
+    .planner-week-options { display:grid; gap:7px; }
+    .planner-week-option { display:flex; align-items:center; justify-content:space-between; gap:10px; width:100%; min-height:48px; padding:8px 11px; border:1px solid var(--line); border-radius:10px; background:#101729; color:var(--text); text-align:left; }
+    .planner-week-option[aria-pressed="true"] { border-color:var(--accent); background:#202b42; }
+    .planner-week-option span:last-child { color:var(--muted); font-size:.78rem; }
+    body.tasks-screen .wrap { padding-bottom:calc(238px + env(safe-area-inset-bottom,0px)); }
+    body.page-tasks:not(.tasks-screen) .wrap { padding-bottom:238px; }
+    @media(max-width:760px) {
+      #tasksPage .planner-toolbar { gap:4px; }
+      #plannerWeekPickerBtn { padding:6px 11px; font-size:.76rem; }
+      #plannerWeekViewport { padding-bottom:16px; }
+      #plannerWeekGrid { grid-template-columns:1fr; gap:5px; min-height:auto; }
+      .planner-day { display:grid; grid-template-columns:64px minmax(0,1fr); align-items:start; min-height:68px; padding:6px; }
+      .planner-day-header { display:grid; align-content:start; justify-items:start; gap:2px; margin:1px 0 0; padding:0; border:0; }
+      .planner-day-name { font-size:.62rem; }
+      .planner-day-date { font-size:.8rem; }
+      .planner-day-tasks { min-height:52px; }
+      .planner-day-empty { min-height:44px; }
+      .plan-tray-toggle { bottom:calc(193px + env(safe-area-inset-bottom,0px)); }
+      .plan-tray { bottom:calc(184px + env(safe-area-inset-bottom,0px)); width:calc(100% - 20px); max-height:48vh; padding:9px; }
+      .plan-tray-list { grid-template-columns:1fr; gap:5px; }
+      .planner-completed-list { grid-template-columns:1fr; gap:5px; }
+      .plan-tray-list .planner-task { min-height:82px !important; }
+      body.tasks-screen .wrap { padding-bottom:calc(250px + env(safe-area-inset-bottom,0px)); }
+      body.page-tasks:not(.tasks-screen) .wrap { padding-bottom:250px; }
+    }
   </style>
 </head>
 <body>
@@ -443,9 +518,9 @@
           <span class="progress-track" id="homeReviewProgress" role="progressbar" aria-label="Aprovando" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span id="homeReviewBar"></span></span>
           <span class="dashboard-share" id="homeReviewShare">0% do total</span>
         </button>
-        <button class="dashboard-card tone-waiting" type="button" data-dashboard-status="waiting" aria-label="Ver tarefas de entrada">
-          <span class="dashboard-label">Entrada</span><strong class="dashboard-count" id="waitingCount">0</strong>
-          <span class="progress-track" id="homeWaitingProgress" role="progressbar" aria-label="Entrada" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span id="homeWaitingBar"></span></span>
+        <button class="dashboard-card tone-waiting" type="button" data-dashboard-status="waiting" aria-label="Ver tarefas aguardando planejamento">
+          <span class="dashboard-label">Aguardando</span><strong class="dashboard-count" id="waitingCount">0</strong>
+          <span class="progress-track" id="homeWaitingProgress" role="progressbar" aria-label="Aguardando" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span id="homeWaitingBar"></span></span>
           <span class="dashboard-share" id="homeWaitingShare">0% do total</span>
         </button>
         <button class="dashboard-card tone-done" type="button" data-dashboard-status="done" aria-label="Ver tarefas concluídas">
@@ -508,7 +583,6 @@
     <nav class="task-subnav task-area-nav" id="taskAreaNav" aria-label="Áreas das tarefas">
       <button class="task-tab" type="button" data-task-area="life" aria-pressed="false"><span class="task-tab-label">VIDA</span><span class="task-tab-count" id="lifeAreaCount">0</span></button>
       <button class="task-tab" type="button" data-task-area="work" aria-pressed="false"><span class="task-tab-label">TRABALHO</span><span class="task-tab-count" id="workAreaCount">0</span></button>
-      <button class="task-tab" type="button" data-task-area="inbox" aria-pressed="true"><span class="task-tab-label">ENTRADA</span><span class="task-tab-count" id="inboxAreaCount">0</span></button>
     </nav>
     <nav class="task-subnav task-category-nav hidden" id="taskCategoryNav" aria-label="Categorias da área">
       <button class="task-tab" type="button" data-task-area="life" data-task-category="finance" aria-pressed="false"><span class="task-tab-label">FINANÇAS</span><span class="task-tab-count" id="lifeFinanceCount">0</span></button>
@@ -520,8 +594,24 @@
       <button class="task-tab" type="button" data-task-area="work" data-task-category="approval" aria-pressed="false"><span class="task-tab-label">APROVAÇÃO</span><span class="task-tab-count" id="workApprovalCount">0</span></button>
       <button class="task-tab" type="button" data-task-area="work" data-task-category="done" aria-pressed="false"><span class="task-tab-label">CONCLUÍDO</span><span class="task-tab-count" id="workDoneCount">0</span></button>
     </nav>
-    <div id="listView" class="task-pages">
+    <section class="planner-shell" id="plannerShell" aria-label="Planner semanal">
+      <div class="planner-toolbar" aria-label="Navegação semanal">
+        <button class="btn ghost planner-week-nav" id="plannerPrevWeek" type="button" aria-label="Semana anterior" title="Semana anterior">‹</button>
+        <button class="btn" id="plannerWeekPickerBtn" type="button" aria-haspopup="dialog">OUT · Semana 1</button>
+        <button class="btn ghost planner-week-nav" id="plannerNextWeek" type="button" aria-label="Próxima semana" title="Próxima semana">›</button>
+        <button class="btn ghost" id="plannerTodayBtn" type="button">Hoje</button>
+      </div>
       <div class="done-toolbar hidden" id="taskListToolbar"><button class="btn warn small" id="clearCompletedBtn" type="button" aria-label="Limpar todas as tarefas concluídas desta área" disabled>Limpar tudo</button></div>
+      <div id="plannerWeekViewport" aria-label="Semana selecionada">
+        <div id="plannerWeekGrid" aria-live="polite"></div>
+      </div>
+    </section>
+    <button class="plan-tray-toggle" id="planTrayToggle" type="button" aria-expanded="false" aria-controls="planTray">Planejar (<span id="planTrayCount">0</span>)</button>
+    <section class="plan-tray hidden" id="planTray" aria-label="Bandeja Planejar" aria-hidden="true">
+      <div class="plan-tray-head"><div><h3>Planejar</h3><p>Tarefas sem Dia de execução. Classifique as sem área antes de agendar.</p></div><button class="btn ghost small" id="closePlanTray" type="button" aria-label="Fechar bandeja Planejar">Fechar</button></div>
+      <div class="plan-tray-list" id="planTrayList" aria-live="polite"></div>
+    </section>
+    <div id="listView" class="task-pages hidden" aria-hidden="true">
       <section class="list" id="taskList" aria-live="polite"></section>
     </div>
     </section>
@@ -586,12 +676,17 @@
       <h2>Organizar tarefa</h2>
       <p class="muted" id="categoryTaskName" style="margin:-6px 0 15px"></p>
       <div class="field"><label for="categoryDestination">Mover para</label><select id="categoryDestination" required>
-        <optgroup label="ENTRADA"><option value="inbox">Lista genérica</option></optgroup>
+        <optgroup label="SEM ÁREA"><option value="inbox">Sem área — fica em Planejar</option></optgroup>
         <optgroup label="VIDA"><option value="life:finance">Finanças</option><option value="life:home">Casa</option><option value="life:personal">Pessoal</option></optgroup>
         <optgroup label="TRABALHO"><option value="work:released">Liberado</option><option value="work:quote">Enviar orçamento</option><option value="work:approval">Aprovação</option></optgroup>
       </select></div>
       <div class="actions"><button class="btn primary" type="submit">Salvar destino</button><button class="btn" type="button" id="cancelCategoryBtn">Cancelar</button></div>
     </form>
+  </dialog>
+  <dialog id="plannerWeekDialog">
+    <div class="panel-head"><h2>Escolher semana</h2><button class="btn ghost small" id="closePlannerWeekDialog" type="button" aria-label="Fechar seleção de semana">Fechar</button></div>
+    <div class="planner-month-controls"><button class="btn ghost" id="plannerMonthPrev" type="button" aria-label="Mês anterior">‹</button><strong id="plannerMonthLabel"></strong><button class="btn ghost" id="plannerMonthNext" type="button" aria-label="Próximo mês">›</button></div>
+    <div class="planner-week-options" id="plannerWeekOptions"></div>
   </dialog>
   <dialog id="detailsDialog">
     <div class="panel-head"><h2 id="detailTitle">Detalhes</h2><button class="btn ghost small" id="closeDetailsBtn" type="button">Fechar</button></div>
@@ -635,7 +730,7 @@
   </dialog>
   <div id="toast" class="toast hidden" role="status"></div>
   <script src="./config.js?v=1" defer></script>
-  <script src="./app.js?v=35" defer></script>
-  <script>if('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('./sw.js?v=43',{updateViaCache:'none'}).then(registration=>registration.update()).catch(()=>{});</script>
+  <script src="./app.js?v=36" defer></script>
+  <script>if('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('./sw.js?v=44',{updateViaCache:'none'}).then(registration=>registration.update()).catch(()=>{});</script>
 </body>
 </html>
